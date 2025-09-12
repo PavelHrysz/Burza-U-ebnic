@@ -2,123 +2,113 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
-  <title>Burza učebnic - mobil/PC</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <!-- Html5Qrcode knihovna -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
-
+  <title>Burza učebnic – mobilní skener</title>
   <style>
     body {
-      font-family: Arial, sans-serif;
       background: #121212;
       color: #e0e0e0;
-      text-align: center;
+      font-family: "Segoe UI", Arial, sans-serif;
       padding: 20px;
+      text-align: center;
     }
-    h1 { color: #ffffff; margin-bottom: 20px; }
-    #reader { width: 300px; margin: 0 auto; }
-    #manualInput { margin-top: 20px; }
-    input, button { padding: 8px; font-size: 16px; border-radius: 6px; margin: 5px; }
+    h1 {
+      color: #fff;
+    }
+    #interactive.viewport {
+      position: relative;
+      width: 100%;
+      max-width: 400px;
+      margin: 20px auto;
+      border: 2px solid #444;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    #interactive video {
+      width: 100%;
+      height: auto;
+    }
+    #codeInput {
+      padding: 10px;
+      font-size: 16px;
+      border-radius: 6px;
+      border: 1px solid #333;
+      background: #1e1e1e;
+      color: #e0e0e0;
+      width: 220px;
+      text-align: center;
+      margin-top: 10px;
+    }
     .book-card {
       margin-top: 20px;
-      padding: 15px;
+      padding: 20px;
       background: #1f1f1f;
       border-radius: 12px;
+      box-shadow: 0 0 12px rgba(0,0,0,0.5);
       display: inline-block;
+      max-width: 500px;
       text-align: left;
-      max-width: 350px;
     }
-    .book-card img { max-width: 120px; display: block; margin-bottom: 10px; border-radius: 8px; }
-    .book-card button {
-      font-size: 16px;
-      padding: 8px 16px;
-      margin-top: 10px;
-      border: none;
-      border-radius: 6px;
-      background: #3a86ff;
-      color: white;
-      cursor: pointer;
+    .book-card img {
+      max-width: 120px;
+      border-radius: 8px;
+      margin-bottom: 10px;
     }
-    .book-card button:hover { background: #266dd3; }
-    #log { margin-top: 20px; font-size: 12px; color: #aaa; text-align: left; max-width: 600px; margin-left:auto; margin-right:auto;}
+    #log {
+      margin-top: 15px;
+      font-size: 12px;
+      color: #aaa;
+      text-align: left;
+      max-width: 500px;
+      margin-left: auto;
+      margin-right: auto;
+    }
   </style>
 </head>
 <body>
   <h1>Burza učebnic</h1>
 
-  <!-- Skener div pro mobil -->
-  <div id="reader"></div>
+  <div id="interactive" class="viewport"></div>
 
-  <!-- Ruční zadání pro PC -->
-  <div id="manualInput">
-    <input type="text" id="manualCode" placeholder="Zadej kód manuálně">
-    <button onclick="fetchBook(document.getElementById('manualCode').value)">Načíst učebnici</button>
-  </div>
+  <input type="text" id="codeInput" placeholder="Zadej kód ručně">
+  <button onclick="submitCode()">Vyhledat</button>
 
   <div id="bookInfo"></div>
   <div id="log"></div>
 
+  <!-- QuaggaJS -->
+  <script src="https://unpkg.com/quagga@0.12.1/dist/quagga.min.js"></script>
   <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwIRLHu_Due8r2F5kW84lYtejdks7hzS0Y_8j3Pv4WDgU-dC1sTVUU2YYDFqcPON_bMzg/exec"; // <-- vlož svůj GAS Web App URL
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwIRLHu_Due8r2F5kW84lYtejdks7hzS0Y_8j3Pv4WDgU-dC1sTVUU2YYDFqcPON_bMzg/exec"; // <- sem vlož svou URL GAS Web App
+
     let currentBook = null;
 
     function log(msg) {
       const logDiv = document.getElementById("log");
       logDiv.innerHTML += `<div>${msg}</div>`;
+      logDiv.scrollTop = logDiv.scrollHeight;
     }
 
-    // ================= LOG PO NAČTENÍ STRÁNKY =================
-    window.onload = function() {
-      log("Stránka načtena!");
-
-      if (typeof Html5Qrcode !== "undefined") {
-        log("Html5Qrcode knihovna OK");
-        startScanner();
-      } else {
-        log("Html5Qrcode knihovna NENÍ dostupná (PC / file://)");
+    function submitCode(code) {
+      if (!code) {
+        code = document.getElementById("codeInput").value.trim();
       }
-    }
-
-    // ================= FUNKCE SKENER =================
-    function startScanner() {
-      const html5QrcodeScanner = new Html5Qrcode("reader");
-
-      html5QrcodeScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
-        decodedText => {
-          log("Naskenováno: " + decodedText);
-          fetchBook(decodedText);
-        },
-        errorMessage => {
-          // ignorovat chyby scanování
-        }
-      ).catch(err => log("Chyba při spuštění kamery: " + err));
-    }
-
-    // ================= FUNKCE NAČTENÍ UČEBNICE =================
-    function fetchBook(code) {
       if (!code) return;
+
       log("Odesílám kód: " + code);
 
-      fetch(`${GAS_URL}?code=${encodeURIComponent(code)}`)
+      fetch(`${GAS_URL}?code=${code}`)
         .then(res => res.json())
         .then(showBook)
-        .catch(err => log("Chyba při načítání učebnice: " + err));
+        .catch(err => log("Chyba při načítání: " + err));
     }
 
-    // ================= FUNKCE ZOBRAZENÍ UČEBNICE =================
     function showBook(book) {
-      currentBook = book;
       const div = document.getElementById("bookInfo");
-
-      if (!book) {
+      if (!book || !book.code) {
         div.innerHTML = "<p style='color:red;'>Učebnice nenalezena!</p>";
-        log("Výsledek: nenalezeno");
         return;
       }
-
+      currentBook = book;
       const isSold = book.status.toLowerCase() === "prodano";
       const totalPrice = Number(book.price) + Number(book.fee);
 
@@ -126,42 +116,54 @@
         <div class="book-card">
           <img src="${book.image}" alt="Obrázek učebnice">
           <p><b>Kód:</b> ${book.code}</p>
-          <p><b>Stav:</b> <span id="bookStatus">${book.status}</span></p>
-          <p><b>Jméno:</b> ${book.title}</p>
+          <p><b>Stav:</b> ${book.status}</p>
+          <p><b>Název:</b> ${book.title}</p>
           <p><b>Majitel:</b> ${book.owner}</p>
           <p><b>Email:</b> ${book.email}</p>
           <p><b>Třída:</b> ${book.class}</p>
           <p><b>Cena:</b> ${book.price} Kč</p>
-          <p><b>Cena s přirážkou: <u>${totalPrice} Kč</u></b></p>
-          ${!isSold ? `<button id="markSoldBtn">Prodáno</button>` : ""}
+          <p><b>S přirážkou:</b> <u>${totalPrice} Kč</u></p>
         </div>
       `;
-
-      const markBtn = document.getElementById("markSoldBtn");
-      if (markBtn) {
-        markBtn.onclick = () => markCurrentBookAsSold();
-      }
-
       log("Výsledek: učebnice nalezena (" + book.code + ")");
     }
 
-    // ================= FUNKCE PRODÁNO =================
-    function markCurrentBookAsSold() {
-      if (!currentBook) return;
-      log("Označuji učebnici jako prodanou: " + currentBook.code);
+    // Spuštění kamery
+    document.addEventListener("DOMContentLoaded", () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        log("Kamera není podporovaná. Použij ruční zadání.");
+        return;
+      }
 
-      fetch(`${GAS_URL}?action=markAsSold&code=${encodeURIComponent(currentBook.code)}`)
-        .then(res => res.json())
-        .then(res => {
-          log("MarkAsSold: " + res.message);
-          document.getElementById("bookStatus").innerText = "prodano";
-          const btn = document.getElementById("markSoldBtn");
-          if (btn) btn.remove();
-          currentBook.status = "prodano";
-          log("Stav knihy přepsán na 'prodano'.");
-        })
-        .catch(err => log("Chyba při označení prodáno: " + err));
-    }
+      Quagga.init({
+        inputStream: {
+          type : "LiveStream",
+          constraints: {
+            facingMode: "environment" // zadní kamera
+          },
+          target: document.querySelector('#interactive')
+        },
+        decoder: {
+          readers: ["code_128_reader","ean_reader","ean_8_reader","code_39_reader"]
+        }
+      }, function(err) {
+          if (err) {
+              log("Chyba při spouštění kamery: " + err);
+              return;
+          }
+          log("Kamera spuštěna, čekám na čárový kód...");
+          Quagga.start();
+      });
+
+      Quagga.onDetected(data => {
+        const code = data.codeResult.code;
+        if (code && code.length === 9) {
+          log("Naskenováno: " + code);
+          Quagga.stop();
+          submitCode(code);
+        }
+      });
+    });
   </script>
 </body>
 </html>
