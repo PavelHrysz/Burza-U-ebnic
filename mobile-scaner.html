@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang=cs>
+<head>
+  <meta charset="UTF-8">
+  <title>Mobilní skener Burza učebnic</title>
+  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+  <style>
+    body { font-family: Arial; background: #121212; color:#e0e0e0; text-align:center; padding:20px; }
+    #reader { width: 300px; margin: auto; }
+    .book-card { margin-top:20px; padding:20px; background:#1f1f1f; border-radius:12px; display:inline-block; text-align:left;}
+    .book-card img { max-width:120px; display:block; margin-bottom:10px; }
+    button { font-size:18px; padding:10px 20px; margin-top:10px; }
+  </style>
+</head>
+<body>
+<h1>Mobilní skener Burza učebnic</h1>
+
+<div id="reader"></div>
+<div id="bookInfo"></div>
+<button id="restartBtn" style="display:none;">Restartovat skener</button>
+
+<script>
+const GAS_URL = "https://script.google.com/macros/s/TVÉ-URL/exec"; // Změň na svůj Web App URL
+
+let html5QrcodeScanner = new Html5Qrcode("reader");
+
+function onScanSuccess(decodedText, decodedResult) {
+  // zastavíme skener
+  html5QrcodeScanner.stop().then(() => {
+    document.getElementById("restartBtn").style.display = "block";
+    fetchBookInfo(decodedText);
+  }).catch(err => console.error("Chyba při zastavení skeneru:", err));
+}
+
+function fetchBookInfo(code) {
+  fetch(GAS_URL + "?code=" + code)
+    .then(res => res.json())
+    .then(book => {
+      if(!book) {
+        document.getElementById("bookInfo").innerHTML="<p style='color:red;'>Učebnice nenalezena!</p>";
+        return;
+      }
+      const totalPrice = Number(book.price)+Number(book.fee);
+      document.getElementById("bookInfo").innerHTML=`
+        <div class="book-card">
+          <img src="${book.image}" alt="Obrázek">
+          <p><b>Kód:</b> ${book.code}</p>
+          <p><b>Stav:</b> ${book.status}</p>
+          <p><b>Jméno:</b> ${book.title}</p>
+          <p><b>Majitel:</b> ${book.owner}</p>
+          <p><b>Email:</b> ${book.email}</p>
+          <p><b>Třída:</b> ${book.class}</p>
+          <p><b>Cena:</b> ${book.price} Kč</p>
+          <p><b>Cena s přirážkou:</b> ${totalPrice} Kč</p>
+        </div>
+      `;
+    })
+    .catch(err => alert("Chyba při načítání: "+err));
+}
+
+function startScanner() {
+  html5QrcodeScanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    onScanSuccess
+  ).catch(err => console.error("Chyba při startu kamery:", err));
+}
+
+document.getElementById("restartBtn").onclick = function() {
+  document.getElementById("bookInfo").innerHTML = "";
+  document.getElementById("restartBtn").style.display = "none";
+  startScanner();
+}
+
+// start ihned po načtení
+startScanner();
+</script>
+</body>
+</html>
