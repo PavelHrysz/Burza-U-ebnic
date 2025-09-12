@@ -30,18 +30,29 @@
 
 <div id="result"></div>
 
+<!-- Přidat těsně pod kameru a inputy -->
+<div id="log" style="margin-top:15px; font-size:0.9em; color:#aaa; text-align:left;"></div>
+
 <script>
-const API_URL = "https://script.google.com/macros/s/AKfycbwQyDZPcq2SNLq_A7DELfRIkXxITCR4QvHqH_a6eHvd0JV4fFQKbj5P1Dyyq9Qq3kn0IQ/exec";
+const API_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
 let html5QrcodeScanner = null;
 
-// normalizace speciálních znaků z čárového kódu
+// logovací funkce
+function log(msg){
+  const logDiv = document.getElementById("log");
+  const time = new Date().toLocaleTimeString();
+  logDiv.innerHTML += `[${time}] ${msg}<br>`;
+  logDiv.scrollTop = logDiv.scrollHeight;
+}
+
+// normalizace speciálních znaků
 function normalizeCode(code) {
   if(!code) return "";
   const map = { "°":"", "+":"1","ě":"2","š":"3","č":"4","ř":"5","ž":"6","ý":"7","á":"8","í":"9","é":"0" };
   return code.split("").map(ch => map[ch]!==undefined ? map[ch] : (/[0-9]/.test(ch) ? ch : "")).join("");
 }
 
-// spuštění kamery
+// spustíme kameru
 function startCamera() {
   document.getElementById("result").style.display = "none";
   document.getElementById("codeInput").value = "";
@@ -60,13 +71,11 @@ function startCamera() {
       searchBook(decodedText);
     }
   );
-}
 
-// ruční vyhledávání
-function manualScan() {
-  const code = document.getElementById("codeInput").value.trim();
-  if(!code) return;
-  searchBook(code);
+  // kontrola načtení tabulky
+  fetch(`${API_URL}?test=1`).then(res => res.json())
+    .then(data => log("✅ Tabulka načtena, položek: " + (data?.length||0)))
+    .catch(err => log("❌ Nepodařilo se načíst tabulku: " + err));
 }
 
 // vyhledání knihy
@@ -82,6 +91,7 @@ async function searchBook(code) {
 
   if(!book) {
     resultDiv.innerHTML = "<p>❌ Učebnice nenalezena.</p>";
+    log("❌ Nenalezeno: " + normalized);
     return;
   }
 
@@ -98,6 +108,7 @@ async function searchBook(code) {
     ${!isSold ? `<button class="mark-btn" onclick="markAsSold('${normalized}')">Označit jako prodané</button>` : ""}
   `;
 
+  log("✅ Učebnice nalezena: " + normalized);
   document.getElementById("codeInput").value = "";
 }
 
@@ -106,11 +117,12 @@ async function markAsSold(code) {
   const res = await fetch(`${API_URL}?code=${encodeURIComponent(code)}&action=markAsSold`);
   const data = await res.json();
   alert(data.message);
-  startCamera(); // po označení restart kamery
+  startCamera();
 }
 
-// spustíme kameru při načtení stránky
+// start kamery při načtení
 startCamera();
 </script>
+
 </body>
 </html>
