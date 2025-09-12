@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Burza učebnic – Skener</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -20,27 +21,31 @@
       color: #ffffff;
     }
 
+    #reader {
+      width: 95%;
+      max-width: 500px;
+      margin: 0 auto 20px auto;
+      border: 3px solid #333;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
     input {
       padding: 12px;
       font-size: 1.1em;
-      width: 80%;
-      max-width: 320px;
+      width: 70%;
+      max-width: 280px;
       border: 2px solid #333;
       border-radius: 10px;
       background-color: #1e1e1e;
       color: #fff;
       outline: none;
-      transition: border 0.2s;
-    }
-
-    input:focus {
-      border-color: #4dabf7;
     }
 
     button {
-      margin-top: 15px;
-      padding: 12px 20px;
-      font-size: 1.1em;
+      padding: 12px 18px;
+      margin: 10px;
+      font-size: 1em;
       border: none;
       border-radius: 10px;
       cursor: pointer;
@@ -51,7 +56,7 @@
     }
 
     button:active {
-      transform: scale(0.96);
+      transform: scale(0.95);
       opacity: 0.9;
     }
 
@@ -66,7 +71,7 @@
     }
 
     .book-image {
-      max-width: 120px;
+      max-width: 150px;
       margin: 10px auto;
       display: block;
       border-radius: 6px;
@@ -92,17 +97,41 @@
   </style>
 </head>
 <body>
-  <h1>📚 Burza učebnic</h1>
+  <h1>📚 Burza učebnic – Skener</h1>
+
+  <!-- Kamera -->
+  <div id="reader"></div>
+
+  <!-- Ruční zadání -->
   <input type="text" id="codeInput" placeholder="Zadejte kód">
   <button onclick="searchBook()">Vyhledat</button>
 
+  <!-- Výsledek -->
   <div id="result"></div>
 
   <script>
     const API_URL = "https://script.google.com/macros/s/AKfycbwIRLHu_Due8r2F5kW84lYtejdks7hzS0Y_8j3Pv4WDgU-dC1sTVUU2YYDFqcPON_bMzg/exec";
 
-    async function searchBook() {
-      const code = document.getElementById("codeInput").value.trim();
+    // ========== KAMERA ==========
+    function onScanSuccess(decodedText) {
+      console.log("Naskenováno:", decodedText);
+      searchBook(decodedText);
+    }
+
+    function onScanError(errorMessage) {
+      // chyby neřešíme, kamera prostě jede dál
+    }
+
+    const html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader",
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      false
+    );
+    html5QrcodeScanner.render(onScanSuccess, onScanError);
+
+    // ========== VYHLEDÁNÍ ==========
+    async function searchBook(manualCode) {
+      const code = manualCode || document.getElementById("codeInput").value.trim();
       if (!code) return;
 
       const res = await fetch(`${API_URL}?code=${encodeURIComponent(code)}`);
@@ -125,20 +154,21 @@
         <p><strong>Majitel:</strong> ${book.owner} (${book.class})</p>
         <p><strong>Email:</strong> ${book.email}</p>
         <p><strong>Cena:</strong> ${book.price} Kč (+${book.fee} Kč přirážka)</p>
-        <p class="status ${statusClass}">
-          Stav: ${book.status}
-        </p>
+        <p class="status ${statusClass}">Stav: ${book.status}</p>
         ${!isSold ? 
           `<button class="mark-btn" onclick="markAsSold('${book.code}')">Označit jako prodané</button>` 
           : ""}
       `;
+
+      document.getElementById("codeInput").value = ""; // vyčistí pole
     }
 
+    // ========== PRODEJ ==========
     async function markAsSold(code) {
       const res = await fetch(`${API_URL}?code=${encodeURIComponent(code)}&action=markAsSold`);
       const data = await res.json();
       alert(data.message);
-      searchBook(); // obnoví info po změně stavu
+      searchBook(code); // obnoví info
     }
   </script>
 </body>
