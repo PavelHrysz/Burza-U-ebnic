@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <title>Mobilní skener Burza učebnic</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Html5Qrcode knihovna -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.7/minified/html5-qrcode.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      color: #e0e0e0;
+      text-align: center;
+      padding: 20px;
+    }
+    h1 { color: #ffffff; margin-bottom: 20px; }
+    #reader { width: 300px; margin: 0 auto; }
+    .book-card {
+      margin-top: 20px;
+      padding: 15px;
+      background: #1f1f1f;
+      border-radius: 12px;
+      display: inline-block;
+      text-align: left;
+      max-width: 350px;
+    }
+    .book-card img { max-width: 120px; display: block; margin-bottom: 10px; border-radius: 8px; }
+    .book-card button {
+      font-size: 16px;
+      padding: 8px 16px;
+      margin-top: 10px;
+      border: none;
+      border-radius: 6px;
+      background: #3a86ff;
+      color: white;
+      cursor: pointer;
+    }
+    .book-card button:hover { background: #266dd3; }
+  </style>
+</head>
+<body>
+  <h1>Mobilní skener Burza učebnic</h1>
+
+  <div id="reader"></div>
+  <div id="bookInfo"></div>
+  <div id="log" style="margin-top:20px; font-size:12px; color:#aaa;"></div>
+
+  <script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxJepkST_H1f7VtLw31obszauzH6YOw3aYOG2hc0wK31EnhBLvlnSecBPvMe1Im3_Hw5Q/exec"; // <-- sem dej svůj Web App URL
+    let currentBook = null;
+
+    function log(msg) {
+      const logDiv = document.getElementById("log");
+      logDiv.innerHTML += `<div>${msg}</div>`;
+    }
+
+    function showBook(book) {
+      currentBook = book;
+      const div = document.getElementById("bookInfo");
+      if (!book) {
+        div.innerHTML = "<p style='color:red;'>Učebnice nenalezena!</p>";
+        log("Výsledek: nenalezeno");
+        return;
+      }
+
+      const isSold = book.status.toLowerCase() === "prodano";
+      const totalPrice = Number(book.price) + Number(book.fee);
+
+      div.innerHTML = `
+        <div class="book-card">
+          <img src="${book.image}" alt="Obrázek učebnice">
+          <p><b>Kód:</b> ${book.code}</p>
+          <p><b>Stav:</b> <span id="bookStatus">${book.status}</span></p>
+          <p><b>Jméno:</b> ${book.title}</p>
+          <p><b>Majitel:</b> ${book.owner}</p>
+          <p><b>Email:</b> ${book.email}</p>
+          <p><b>Třída:</b> ${book.class}</p>
+          <p><b>Cena:</b> ${book.price} Kč</p>
+          <p><b>Cena s přirážkou: <u>${totalPrice} Kč</u></b></p>
+          ${!isSold ? `<button id="markSoldBtn">Prodáno</button>` : ""}
+        </div>
+      `;
+
+      const markBtn = document.getElementById("markSoldBtn");
+      if (markBtn) {
+        markBtn.onclick = () => markCurrentBookAsSold();
+      }
+    }
+
+    function markCurrentBookAsSold() {
+      if (!currentBook) return;
+      log("Označuji učebnici jako prodanou: " + currentBook.code);
+
+      google.script.run
+        .withSuccessHandler(res => {
+          log("MarkAsSold: " + res.message);
+          document.getElementById("bookStatus").innerText = "prodano";
+          const btn = document.getElementById("markSoldBtn");
+          if (btn) btn.remove();
+          currentBook.status = "prodano";
+        })
+        .markAsSold(currentBook.code);
+    }
+
+    function fetchBook(code) {
+      if (!code) return;
+      log("Odesílám kód: " + code);
+      google.script.run
+        .withSuccessHandler(showBook)
+        .getBookInfo(code);
+    }
+
+    window.onload = function() {
+      const html5QrcodeScanner = new Html5Qrcode("reader");
+
+      html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        decodedText => {
+          log("Naskenováno: " + decodedText);
+          fetchBook(decodedText);
+        },
+        errorMessage => {
+          // ignorovat chyby scanování
+        }
+      ).catch(err => log("Chyba při spuštění kamery: " + err));
+    };
+  </script>
+</body>
+</html>
