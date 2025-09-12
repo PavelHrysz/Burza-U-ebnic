@@ -2,153 +2,144 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
+  <title>Burza učebnic – Skener</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>📚 Burza učebnic – skener</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
   <style>
     body {
-      font-family: "Segoe UI", Roboto, sans-serif;
-      text-align: center;
-      padding: 15px;
-      margin: 0;
+      font-family: Arial, sans-serif;
       background-color: #121212;
-      color: #e0e0e0;
+      color: #f5f5f5;
+      margin: 0;
+      padding: 20px;
+      text-align: center;
     }
+
     h1 {
-      font-size: 2rem;
-      margin-bottom: 20px;
+      font-size: 1.6em;
+      margin-bottom: 15px;
       color: #ffffff;
-      text-shadow: 0 2px 8px rgba(0,0,0,0.8);
     }
-    #reader {
-      margin: auto;
-      width: 90vw;
-      max-width: 650px;
-      height: 65vh;
+
+    input {
+      padding: 12px;
+      font-size: 1.1em;
+      width: 80%;
+      max-width: 320px;
       border: 2px solid #333;
-      border-radius: 16px;
-      overflow: hidden;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.6);
-      background: #1e1e1e;
-    }
-    #result {
-      margin-top: 18px;
-      font-size: 1.3rem;
-      font-weight: bold;
-      color: #03dac6;
-    }
-    #bookInfo {
-      margin-top: 25px;
-      text-align: left;
-      display: inline-block;
-      max-width: 520px;
-      font-size: 1rem;
-      background: #1e1e1e;
-      border-radius: 14px;
-      padding: 18px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.7);
-      border: 1px solid #333;
-      color: #ddd;
-    }
-    #bookInfo img {
-      max-width: 100%;
-      margin-top: 12px;
       border-radius: 10px;
-      border: 1px solid #444;
-    }
-    button {
-      margin-top: 20px;
-      padding: 14px 22px;
-      font-size: 1rem;
-      border-radius: 10px;
-      border: none;
-      background: linear-gradient(135deg, #03a9f4, #0288d1);
+      background-color: #1e1e1e;
       color: #fff;
-      font-weight: 500;
-      cursor: pointer;
-      box-shadow: 0 3px 10px rgba(0,0,0,0.5);
-      transition: all 0.2s ease;
+      outline: none;
+      transition: border 0.2s;
     }
-    button:hover {
-      background: linear-gradient(135deg, #29b6f6, #039be5);
-      transform: translateY(-2px);
+
+    input:focus {
+      border-color: #4dabf7;
+    }
+
+    button {
+      margin-top: 15px;
+      padding: 12px 20px;
+      font-size: 1.1em;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: linear-gradient(135deg, #4dabf7, #1971c2);
+      color: white;
+      font-weight: bold;
+      transition: transform 0.15s, opacity 0.15s;
+    }
+
+    button:active {
+      transform: scale(0.96);
+      opacity: 0.9;
+    }
+
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 12px;
+      background-color: #1e1e1e;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      display: none;
+      text-align: left;
+    }
+
+    .book-image {
+      max-width: 120px;
+      margin: 10px auto;
+      display: block;
+      border-radius: 6px;
+    }
+
+    .status {
+      font-weight: bold;
+      margin: 8px 0;
+    }
+
+    .status.available {
+      color: #69db7c;
+    }
+
+    .status.sold {
+      color: #ff6b6b;
+    }
+
+    .mark-btn {
+      margin-top: 12px;
+      background: linear-gradient(135deg, #ff6b6b, #c92a2a);
     }
   </style>
 </head>
 <body>
-  <h1>📚 Burza učebnic – skener</h1>
-  <div id="reader"></div>
-  <div id="result">📷 Čekám na skenování…</div>
-  <div id="bookInfo">ℹ️ Zatím žádná učebnice nenalezena.</div>
-  <button onclick="restartScanner()">🔄 Spustit znovu</button>
+  <h1>📚 Burza učebnic</h1>
+  <input type="text" id="codeInput" placeholder="Zadejte kód">
+  <button onclick="searchBook()">Vyhledat</button>
+
+  <div id="result"></div>
 
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwIRLHu_Due8r2F5kW84lYtejdks7hzS0Y_8j3Pv4WDgU-dC1sTVUU2YYDFqcPON_bMzg/exec"; 
+    const API_URL = "https://script.google.com/macros/s/AKfycbwIRLHu_Due8r2F5kW84lYtejdks7hzS0Y_8j3Pv4WDgU-dC1sTVUU2YYDFqcPON_bMzg/exec";
 
-    let html5QrcodeScanner;
+    async function searchBook() {
+      const code = document.getElementById("codeInput").value.trim();
+      if (!code) return;
 
-    function onScanSuccess(decodedText) {
-      document.getElementById('result').innerText = "📌 Načtený kód: " + decodedText;
-      fetchBook(decodedText);
-      html5QrcodeScanner.stop().catch(err => {
-        console.error("Chyba při zastavení:", err);
-      });
-    }
+      const res = await fetch(`${API_URL}?code=${encodeURIComponent(code)}`);
+      const book = await res.json();
 
-    function startScanner() {
-      html5QrcodeScanner = new Html5Qrcode("reader");
-      const config = { fps: 10, qrbox: { width: 320, height: 320 } };
-      html5QrcodeScanner.start(
-        { facingMode: "environment" },
-        config,
-        onScanSuccess
-      ).catch(err => {
-        console.error("Chyba při spuštění skeneru:", err);
-      });
-    }
+      const resultDiv = document.getElementById("result");
+      resultDiv.style.display = "block";
 
-    function restartScanner() {
-      document.getElementById('result').innerText = "📷 Čekám na nový kód...";
-      document.getElementById('bookInfo').innerText = "ℹ️ Zatím žádná učebnice nenalezena.";
-      startScanner();
-    }
-
-    async function fetchBook(code) {
-      try {
-        const response = await fetch(`${API_URL}?code=${code}`);
-        const data = await response.json();
-
-        if (data && data.title) {
-          document.getElementById('bookInfo').innerHTML = `
-            <b>📖 Název:</b> ${data.title}<br>
-            <b>👤 Majitel:</b> ${data.owner} (${data.class})<br>
-            <b>💰 Cena:</b> ${data.price} Kč<br>
-            <b>📧 Kontakt:</b> ${data.email}<br>
-            <b>📦 Stav:</b> ${data.status}<br>
-            ${data.image ? `<img src="${data.image}" alt="Obrázek učebnice">` : ""}
-            <br><button onclick="markSold('${code}')">✅ Označit jako prodané</button>
-          `;
-        } else {
-          document.getElementById('bookInfo').innerHTML = "⚠️ Učebnice s tímto kódem nebyla nalezena.";
-        }
-      } catch (err) {
-        console.error("Chyba při načítání dat:", err);
-        document.getElementById('bookInfo').innerHTML = "❌ Chyba při načítání dat.";
+      if (!book) {
+        resultDiv.innerHTML = "<p>❌ Učebnice nenalezena.</p>";
+        return;
       }
+
+      const isSold = book.status.toLowerCase() === "prodano";
+      const statusClass = isSold ? "sold" : "available";
+
+      resultDiv.innerHTML = `
+        <h3>${book.title}</h3>
+        ${book.image ? `<img src="${book.image}" class="book-image">` : ""}
+        <p><strong>Majitel:</strong> ${book.owner} (${book.class})</p>
+        <p><strong>Email:</strong> ${book.email}</p>
+        <p><strong>Cena:</strong> ${book.price} Kč (+${book.fee} Kč přirážka)</p>
+        <p class="status ${statusClass}">
+          Stav: ${book.status}
+        </p>
+        ${!isSold ? 
+          `<button class="mark-btn" onclick="markAsSold('${book.code}')">Označit jako prodané</button>` 
+          : ""}
+      `;
     }
 
-    async function markSold(code) {
-      try {
-        const response = await fetch(`${API_URL}?code=${code}&action=markAsSold`);
-        const data = await response.json();
-        alert(data.message);
-      } catch (err) {
-        console.error("Chyba při označování jako prodané:", err);
-        alert("❌ Nepodařilo se označit jako prodané.");
-      }
+    async function markAsSold(code) {
+      const res = await fetch(`${API_URL}?code=${encodeURIComponent(code)}&action=markAsSold`);
+      const data = await res.json();
+      alert(data.message);
+      searchBook(); // obnoví info po změně stavu
     }
-
-    startScanner();
   </script>
 </body>
 </html>
