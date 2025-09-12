@@ -1,112 +1,91 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-<meta charset="UTF-8">
-<title>Burza učebnic – Skener</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-<style>
-  body { font-family: Arial, sans-serif; background-color: #121212; color: #f5f5f5; margin:0; padding:20px; text-align:center; }
-  h1 { font-size:1.6em; margin-bottom:15px; color:#ffffff; }
-  #reader { width:95%; max-width:500px; margin:0 auto 20px auto; border:3px solid #333; border-radius:12px; overflow:hidden; }
-  input { padding:12px; font-size:1.1em; width:70%; max-width:280px; border:2px solid #333; border-radius:10px; background:#1e1e1e; color:#fff; outline:none; }
-  button { padding:12px 18px; margin:10px; font-size:1em; border:none; border-radius:10px; cursor:pointer; background:linear-gradient(135deg,#4dabf7,#1971c2); color:white; font-weight:bold; transition: transform 0.15s, opacity 0.15s; }
-  button:active { transform:scale(0.95); opacity:0.9; }
-  #result { margin-top:20px; padding:15px; border-radius:12px; background-color:#1e1e1e; box-shadow:0 4px 12px rgba(0,0,0,0.4); display:none; text-align:left; }
-  .book-image { max-width:150px; margin:10px auto; display:block; border-radius:6px; }
-  .status { font-weight:bold; margin:8px 0; }
-  .status.available { color:#69db7c; }
-  .status.sold { color:#ff6b6b; }
-  .mark-btn { margin-top:12px; background:linear-gradient(135deg,#ff6b6b,#c92a2a); }
-</style>
+  <meta charset="UTF-8">
+  <title>Burza učebnic – Skener</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+  <style>
+    body { font-family: Arial, sans-serif; background-color: #121212; color: #f5f5f5; margin:0; padding:20px; text-align:center; }
+    h1 { font-size: 1.6em; margin-bottom: 15px; color: #ffffff; }
+    #reader { width: 95%; max-width: 500px; margin:0 auto 20px auto; border: 3px solid #333; border-radius: 12px; overflow: hidden; }
+    #result { margin-top:20px; padding:15px; border-radius:12px; background-color:#1e1e1e; box-shadow:0 4px 12px rgba(0,0,0,0.4); display:none; text-align:left; }
+    .book-image { max-width:150px; margin:10px auto; display:block; border-radius:6px; }
+    .status { font-weight:bold; margin:8px 0; }
+    .status.available { color: #69db7c; }
+    .status.sold { color:#ff6b6b; }
+    button { padding:12px 18px; margin:10px; font-size:1em; border:none; border-radius:10px; cursor:pointer; background: linear-gradient(135deg,#4dabf7,#1971c2); color:white; font-weight:bold; transition: transform 0.15s, opacity 0.15s; }
+    button:active { transform: scale(0.95); opacity:0.9; }
+    .mark-btn { background: linear-gradient(135deg,#ff6b6b,#c92a2a); margin-top:12px; }
+  </style>
 </head>
 <body>
 <h1>📚 Burza učebnic – Skener</h1>
 
 <div id="reader"></div>
+
 <input type="text" id="codeInput" placeholder="Zadejte kód">
 <button onclick="manualScan()">Vyhledat</button>
-<button onclick="startCamera()">Spustit kameru</button>
+<button onclick="startCamera()">Nové skenování</button>
 
 <div id="result"></div>
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbwQyDZPcq2SNLq_A7DELfRIkXxITCR4QvHqH_a6eHvd0JV4fFQKbj5P1Dyyq9Qq3kn0IQ/exec";
-let books = [];
-let soldCodes = new Set();
-let currentBook = null;
 let html5QrcodeScanner = null;
 
-// --- načtení všech knih při startu ---
-google.script.run.withSuccessHandler(data => {
-  books = data;
-  console.log("Tabulka načtena, položek:", books.length);
-  startCamera();
-}).getAllBooks();
+// normalizace speciálních znaků z čárového kódu
+function normalizeCode(code) {
+  if(!code) return "";
+  const map = { "°":"", "+":"1","ě":"2","š":"3","č":"4","ř":"5","ž":"6","ý":"7","á":"8","í":"9","é":"0" };
+  return code.split("").map(ch => map[ch]!==undefined ? map[ch] : (/[0-9]/.test(ch) ? ch : "")).join("");
+}
 
-// ========== KAMERA ==========
-function startCamera(){
+// spuštění kamery
+function startCamera() {
   document.getElementById("result").style.display = "none";
-  const readerDiv = document.getElementById("reader");
-  readerDiv.style.display = "block";
+  document.getElementById("codeInput").value = "";
 
-  if(html5QrcodeScanner){
-    html5QrcodeScanner.stop().then(() => {
-      html5QrcodeScanner.start({facingMode:"environment"}, {fps:10, qrbox:250}, onScanSuccess, onScanError);
-    });
-    return;
-  }
+  if(html5QrcodeScanner) html5QrcodeScanner.stop().then(() => {
+    html5QrcodeScanner.clear();
+  }).catch(()=>{});
 
   html5QrcodeScanner = new Html5Qrcode("reader");
-  html5QrcodeScanner.start({facingMode:"environment"}, {fps:10, qrbox:250}, onScanSuccess, onScanError);
+  html5QrcodeScanner.start(
+    { facingMode: "environment" },
+    { fps: 10, qrbox: 250 },
+    decodedText => {
+      html5QrcodeScanner.stop();
+      html5QrcodeScanner.clear();
+      searchBook(decodedText);
+    }
+  );
 }
 
-function stopCamera(){
-  if(html5QrcodeScanner){
-    html5QrcodeScanner.stop().then(()=>{ document.getElementById("reader").style.display="none"; }).catch(()=>{});
-  }
-}
-
-function onScanSuccess(decodedText){
-  stopCamera();
-  searchBook(decodedText);
-}
-
-function onScanError(errMsg){
-  // ignorujeme chyby, kamera jede dál
-}
-
-// ========== VYHLEDÁNÍ ==========
-function manualScan(){
+// ruční vyhledávání
+function manualScan() {
   const code = document.getElementById("codeInput").value.trim();
   if(!code) return;
   searchBook(code);
 }
 
-function normalizeCode(code){
-  // převod znaků °°+ěščřžýáíé → 1234567890
-  const map = {"°":"", "+":"1","ě":"2","š":"3","č":"4","ř":"5","ž":"6","ý":"7","á":"8","í":"9","é":"0"};
-  let res = "";
-  for(let ch of code) res += map[ch]!==undefined ? map[ch] : ch;
-  return res;
-}
+// vyhledání knihy
+async function searchBook(code) {
+  const normalized = normalizeCode(code);
+  if(!normalized) return;
 
-function searchBook(code){
-  code = normalizeCode(code);
-  document.getElementById("codeInput").value="";
-
-  const book = books.find(b => b.code.toString().trim() === code);
-  currentBook = book;
+  const res = await fetch(`${API_URL}?code=${encodeURIComponent(normalized)}`);
+  const book = await res.json();
 
   const resultDiv = document.getElementById("result");
   resultDiv.style.display = "block";
 
-  if(!book){
+  if(!book) {
     resultDiv.innerHTML = "<p>❌ Učebnice nenalezena.</p>";
     return;
   }
 
-  const isSold = soldCodes.has(book.code) || book.status.toLowerCase()==="prodano";
+  const isSold = book.status.toLowerCase() === "prodano";
   const statusClass = isSold ? "sold" : "available";
 
   resultDiv.innerHTML = `
@@ -115,19 +94,23 @@ function searchBook(code){
     <p><strong>Majitel:</strong> ${book.owner} (${book.class})</p>
     <p><strong>Email:</strong> ${book.email}</p>
     <p><strong>Cena:</strong> ${book.price} Kč (+${book.fee} Kč přirážka)</p>
-    <p class="status ${statusClass}">Stav: ${isSold ? "prodano" : "dostupné"}</p>
-    ${!isSold ? `<button class="mark-btn" onclick="markAsSold('${book.code}')">Označit jako prodané</button>` : ""}
+    <p class="status ${statusClass}">Stav: ${book.status}</p>
+    ${!isSold ? `<button class="mark-btn" onclick="markAsSold('${normalized}')">Označit jako prodané</button>` : ""}
   `;
+
+  document.getElementById("codeInput").value = "";
 }
 
-// ========== PRODEJ ==========
-function markAsSold(code){
-  soldCodes.add(code);
-  google.script.run.withSuccessHandler(res=>{
-    alert(res.message);
-    startCamera(); // po označení spustíme kameru znovu
-  }).markAsSold(code);
+// označení jako prodané
+async function markAsSold(code) {
+  const res = await fetch(`${API_URL}?code=${encodeURIComponent(code)}&action=markAsSold`);
+  const data = await res.json();
+  alert(data.message);
+  startCamera(); // po označení restart kamery
 }
+
+// spustíme kameru při načtení stránky
+startCamera();
 </script>
 </body>
 </html>
