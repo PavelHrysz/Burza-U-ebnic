@@ -60,7 +60,7 @@
   <div id="log"></div>
 
   <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxJepkST_H1f7VtLw31obszauzH6YOw3aYOG2hc0wK31EnhBLvlnSecBPvMe1Im3_Hw5Q/exec"; // <-- vlož svůj GAS Web App URL
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbwIRLHu_Due8r2F5kW84lYtejdks7hzS0Y_8j3Pv4WDgU-dC1sTVUU2YYDFqcPON_bMzg/exec"; // <-- vlož svůj GAS Web App URL
     let currentBook = null;
 
     function log(msg) {
@@ -102,9 +102,10 @@
       if (!code) return;
       log("Odesílám kód: " + code);
 
-      google.script.run
-        .withSuccessHandler(showBook)
-        .getBookInfo(code);
+      fetch(`${GAS_URL}?code=${encodeURIComponent(code)}`)
+        .then(res => res.json())
+        .then(showBook)
+        .catch(err => log("Chyba při načítání učebnice: " + err));
     }
 
     // ================= FUNKCE ZOBRAZENÍ UČEBNICE =================
@@ -149,8 +150,9 @@
       if (!currentBook) return;
       log("Označuji učebnici jako prodanou: " + currentBook.code);
 
-      google.script.run
-        .withSuccessHandler(res => {
+      fetch(`${GAS_URL}?action=markAsSold&code=${encodeURIComponent(currentBook.code)}`)
+        .then(res => res.json())
+        .then(res => {
           log("MarkAsSold: " + res.message);
           document.getElementById("bookStatus").innerText = "prodano";
           const btn = document.getElementById("markSoldBtn");
@@ -158,7 +160,7 @@
           currentBook.status = "prodano";
           log("Stav knihy přepsán na 'prodano'.");
         })
-        .markAsSold(currentBook.code);
+        .catch(err => log("Chyba při označení prodáno: " + err));
     }
   </script>
 </body>
