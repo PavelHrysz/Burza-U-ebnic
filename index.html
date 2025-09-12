@@ -6,94 +6,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background-color: #121212;
-      color: #f5f5f5;
-      margin: 0;
-      padding: 20px;
-      text-align: center;
-    }
-
-    h1 {
-      font-size: 1.6em;
-      margin-bottom: 15px;
-      color: #ffffff;
-    }
-
-    #reader {
-      width: 95%;
-      max-width: 500px;
-      margin: 0 auto 20px auto;
-      border: 3px solid #333;
-      border-radius: 12px;
-      overflow: hidden;
-    }
-
-    input {
-      padding: 12px;
-      font-size: 1.1em;
-      width: 70%;
-      max-width: 280px;
-      border: 2px solid #333;
-      border-radius: 10px;
-      background-color: #1e1e1e;
-      color: #fff;
-      outline: none;
-    }
-
-    button {
-      padding: 12px 18px;
-      margin: 10px;
-      font-size: 1em;
-      border: none;
-      border-radius: 10px;
-      cursor: pointer;
-      background: linear-gradient(135deg, #4dabf7, #1971c2);
-      color: white;
-      font-weight: bold;
-      transition: transform 0.15s, opacity 0.15s;
-    }
-
-    button:active {
-      transform: scale(0.95);
-      opacity: 0.9;
-    }
-
-    #result {
-      margin-top: 20px;
-      padding: 15px;
-      border-radius: 12px;
-      background-color: #1e1e1e;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-      display: none;
-      text-align: left;
-    }
-
-    .book-image {
-      max-width: 150px;
-      margin: 10px auto;
-      display: block;
-      border-radius: 6px;
-    }
-
-    .status {
-      font-weight: bold;
-      margin: 8px 0;
-    }
-
-    .status.available {
-      color: #69db7c;
-    }
-
-    .status.sold {
-      color: #ff6b6b;
-    }
-
-    .mark-btn {
-      margin-top: 12px;
-      background: linear-gradient(135deg, #ff6b6b, #c92a2a);
-    }
+    body { font-family: Arial, sans-serif; background-color: #121212; color: #f5f5f5; margin:0; padding:20px; text-align:center; }
+    h1 { font-size: 1.6em; margin-bottom:15px; color:#fff; }
+    #reader { width: 95%; max-width:500px; margin:0 auto 20px; border:3px solid #333; border-radius:12px; overflow:hidden; display:none; }
+    input { padding:12px; font-size:1.1em; width:70%; max-width:280px; border:2px solid #333; border-radius:10px; background-color:#1e1e1e; color:#fff; outline:none; display:none; }
+    button { padding:12px 18px; margin:10px; font-size:1em; border:none; border-radius:10px; cursor:pointer; background:linear-gradient(135deg,#4dabf7,#1971c2); color:white; font-weight:bold; transition: transform 0.15s, opacity 0.15s; }
+    button:active { transform: scale(0.95); opacity:0.9; }
+    #result { margin-top:20px; padding:15px; border-radius:12px; background-color:#1e1e1e; box-shadow:0 4px 12px rgba(0,0,0,0.4); display:none; text-align:left; }
+    .book-image { max-width:150px; margin:10px auto; display:block; border-radius:6px; }
+    .status { font-weight:bold; margin:8px 0; }
+    .status.available { color:#69db7c; }
+    .status.sold { color:#ff6b6b; }
+    .mark-btn { margin-top:12px; background:linear-gradient(135deg,#ff6b6b,#c92a2a); }
   </style>
 </head>
 <body>
@@ -102,46 +26,52 @@
   <!-- Kamera -->
   <div id="reader"></div>
 
-  <!-- Ruční zadání -->
+  <!-- Ruční zadání pro případ potřeby -->
   <input type="text" id="codeInput" placeholder="Zadejte kód">
-  <button onclick="searchBook()">Vyhledat</button>
 
   <!-- Výsledek -->
   <div id="result"></div>
 
+  <!-- Tlačítko pro okamžité spuštění kamery -->
+  <button id="restartCameraBtn">Spustit kameru znovu</button>
+
   <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbwQyDZPcq2SNLq_A7DELfRIkXxITCR4QvHqH_a6eHvd0JV4fFQKbj5P1Dyyq9Qq3kn0IQ/exec";
+    const API_URL = "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec";
+    let html5QrcodeScanner = null;
+    const readerDiv = document.getElementById("reader");
+    const resultDiv = document.getElementById("result");
+    const codeInput = document.getElementById("codeInput");
 
-    // ========== KAMERA ==========
-    function onScanSuccess(decodedText) {
-      console.log("Naskenováno:", decodedText);
-      searchBook(decodedText);
+    // ---------- Funkce pro spuštění kamery ----------
+    function startCamera() {
+      resultDiv.style.display = "none";
+      codeInput.style.display = "none";
+      readerDiv.style.display = "block";
+
+      if(!html5QrcodeScanner) {
+        html5QrcodeScanner = new Html5Qrcode("reader");
+      }
+
+      html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        decodedText => {
+          html5QrcodeScanner.stop().then(() => showBook(decodedText));
+        }
+      ).catch(err => console.error("Chyba při spuštění kamery:", err));
     }
 
-    function onScanError(errorMessage) {
-      // chyby neřešíme, kamera prostě jede dál
-    }
-
-    const html5QrcodeScanner = new Html5QrcodeScanner(
-      "reader",
-      { fps: 10, qrbox: { width: 250, height: 250 } },
-      false
-    );
-    html5QrcodeScanner.render(onScanSuccess, onScanError);
-
-    // ========== VYHLEDÁNÍ ==========
-    async function searchBook(manualCode) {
-      const code = manualCode || document.getElementById("codeInput").value.trim();
-      if (!code) return;
+    // ---------- Funkce pro zobrazení knihy ----------
+    async function showBook(code) {
+      readerDiv.style.display = "none";
+      codeInput.style.display = "block"; // pro ruční zadání pokud chce
 
       const res = await fetch(`${API_URL}?code=${encodeURIComponent(code)}`);
       const book = await res.json();
 
-      const resultDiv = document.getElementById("result");
-      resultDiv.style.display = "block";
-
-      if (!book) {
+      if(!book){
         resultDiv.innerHTML = "<p>❌ Učebnice nenalezena.</p>";
+        resultDiv.style.display = "block";
         return;
       }
 
@@ -155,21 +85,29 @@
         <p><strong>Email:</strong> ${book.email}</p>
         <p><strong>Cena:</strong> ${book.price} Kč (+${book.fee} Kč přirážka)</p>
         <p class="status ${statusClass}">Stav: ${book.status}</p>
-        ${!isSold ? 
-          `<button class="mark-btn" onclick="markAsSold('${book.code}')">Označit jako prodané</button>` 
-          : ""}
+        ${!isSold ? `<button class="mark-btn" onclick="markAsSold('${book.code}')">Označit jako prodané</button>` : ""}
       `;
-
-      document.getElementById("codeInput").value = ""; // vyčistí pole
+      resultDiv.style.display = "block";
     }
 
-    // ========== PRODEJ ==========
+    // ---------- Funkce pro označení jako prodané ----------
     async function markAsSold(code) {
       const res = await fetch(`${API_URL}?code=${encodeURIComponent(code)}&action=markAsSold`);
       const data = await res.json();
       alert(data.message);
-      searchBook(code); // obnoví info
+      startCamera(); // po označení znovu spustíme kameru
     }
+
+    // ---------- Event pro tlačítko restartu kamery ----------
+    document.getElementById("restartCameraBtn").onclick = () => startCamera();
+
+    // ---------- Event pro ruční zadání ----------
+    codeInput.addEventListener("keydown", e => {
+      if(e.key === "Enter") showBook(codeInput.value.trim());
+    });
+
+    // ---------- Spustit kameru automaticky při načtení ----------
+    startCamera();
   </script>
 </body>
 </html>
