@@ -22,6 +22,12 @@
 <script>
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxJepkST_H1f7VtLw31obszauzH6YOw3aYOG2hc0wK31EnhBLvlnSecBPvMe1Im3_Hw5Q/exec"; // Změň na svůj Web App URL
 
+fetch(GAS_URL + "?code=123456789")
+  .then(r => r.json())
+  .then(d => console.log(d))
+  .catch(e => console.error("Chyba fetchu:", e));
+
+
 let html5QrcodeScanner = new Html5Qrcode("reader");
 
 function onScanSuccess(decodedText, decodedResult) {
