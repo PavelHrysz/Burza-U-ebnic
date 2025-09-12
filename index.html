@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
-  <title>Mobilní skener Burza učebnic</title>
+  <title>Burza učebnic - mobil/PC</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <!-- Html5Qrcode knihovna -->
@@ -18,6 +18,8 @@
     }
     h1 { color: #ffffff; margin-bottom: 20px; }
     #reader { width: 300px; margin: 0 auto; }
+    #manualInput { margin-top: 20px; }
+    input, button { padding: 8px; font-size: 16px; border-radius: 6px; margin: 5px; }
     .book-card {
       margin-top: 20px;
       padding: 15px;
@@ -39,17 +41,26 @@
       cursor: pointer;
     }
     .book-card button:hover { background: #266dd3; }
+    #log { margin-top: 20px; font-size: 12px; color: #aaa; text-align: left; max-width: 600px; margin-left:auto; margin-right:auto;}
   </style>
 </head>
 <body>
-  <h1>Mobilní skener Burza učebnic</h1>
+  <h1>Burza učebnic</h1>
 
+  <!-- Skener div pro mobil -->
   <div id="reader"></div>
+
+  <!-- Ruční zadání pro PC -->
+  <div id="manualInput">
+    <input type="text" id="manualCode" placeholder="Zadej kód manuálně">
+    <button onclick="fetchBook(document.getElementById('manualCode').value)">Načíst učebnici</button>
+  </div>
+
   <div id="bookInfo"></div>
-  <div id="log" style="margin-top:20px; font-size:12px; color:#aaa;"></div>
+  <div id="log"></div>
 
   <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbxJepkST_H1f7VtLw31obszauzH6YOw3aYOG2hc0wK31EnhBLvlnSecBPvMe1Im3_Hw5Q/exec"; // <-- sem dej svůj Web App URL
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxJepkST_H1f7VtLw31obszauzH6YOw3aYOG2hc0wK31EnhBLvlnSecBPvMe1Im3_Hw5Q/exec"; // <-- vlož svůj GAS Web App URL
     let currentBook = null;
 
     function log(msg) {
@@ -57,9 +68,50 @@
       logDiv.innerHTML += `<div>${msg}</div>`;
     }
 
+    // ================= LOG PO NAČTENÍ STRÁNKY =================
+    window.onload = function() {
+      log("Stránka načtena!");
+
+      if (typeof Html5Qrcode !== "undefined") {
+        log("Html5Qrcode knihovna OK");
+        startScanner();
+      } else {
+        log("Html5Qrcode knihovna NENÍ dostupná (PC / file://)");
+      }
+    }
+
+    // ================= FUNKCE SKENER =================
+    function startScanner() {
+      const html5QrcodeScanner = new Html5Qrcode("reader");
+
+      html5QrcodeScanner.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 250 },
+        decodedText => {
+          log("Naskenováno: " + decodedText);
+          fetchBook(decodedText);
+        },
+        errorMessage => {
+          // ignorovat chyby scanování
+        }
+      ).catch(err => log("Chyba při spuštění kamery: " + err));
+    }
+
+    // ================= FUNKCE NAČTENÍ UČEBNICE =================
+    function fetchBook(code) {
+      if (!code) return;
+      log("Odesílám kód: " + code);
+
+      google.script.run
+        .withSuccessHandler(showBook)
+        .getBookInfo(code);
+    }
+
+    // ================= FUNKCE ZOBRAZENÍ UČEBNICE =================
     function showBook(book) {
       currentBook = book;
       const div = document.getElementById("bookInfo");
+
       if (!book) {
         div.innerHTML = "<p style='color:red;'>Učebnice nenalezena!</p>";
         log("Výsledek: nenalezeno");
@@ -88,8 +140,11 @@
       if (markBtn) {
         markBtn.onclick = () => markCurrentBookAsSold();
       }
+
+      log("Výsledek: učebnice nalezena (" + book.code + ")");
     }
 
+    // ================= FUNKCE PRODÁNO =================
     function markCurrentBookAsSold() {
       if (!currentBook) return;
       log("Označuji učebnici jako prodanou: " + currentBook.code);
@@ -101,33 +156,10 @@
           const btn = document.getElementById("markSoldBtn");
           if (btn) btn.remove();
           currentBook.status = "prodano";
+          log("Stav knihy přepsán na 'prodano'.");
         })
         .markAsSold(currentBook.code);
     }
-
-    function fetchBook(code) {
-      if (!code) return;
-      log("Odesílám kód: " + code);
-      google.script.run
-        .withSuccessHandler(showBook)
-        .getBookInfo(code);
-    }
-
-    window.onload = function() {
-      const html5QrcodeScanner = new Html5Qrcode("reader");
-
-      html5QrcodeScanner.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: 250 },
-        decodedText => {
-          log("Naskenováno: " + decodedText);
-          fetchBook(decodedText);
-        },
-        errorMessage => {
-          // ignorovat chyby scanování
-        }
-      ).catch(err => log("Chyba při spuštění kamery: " + err));
-    };
   </script>
 </body>
 </html>
