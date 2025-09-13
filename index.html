@@ -7,23 +7,29 @@
     body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
     video { width: 100%; max-width: 400px; border: 1px solid #ccc; border-radius: 8px; }
     button { margin: 10px; padding: 10px 20px; font-size: 16px; }
-    #log { margin-top: 20px; white-space: pre-wrap; text-align: left; }
+    #log { margin-top: 20px; text-align: left; white-space: pre-wrap; }
+    #bookInfo { margin-top: 20px; text-align: left; }
+    #bookInfo button { margin-top: 10px; }
   </style>
 </head>
 <body>
   <h1>📚 Burza učebnic</h1>
   <video id="camera" autoplay playsinline></video><br>
   <button id="startBtn">▶️ Načíst kód</button>
+
   <div id="log"></div>
+  <div id="bookInfo"></div>
 
   <script src="https://unpkg.com/@zxing/library@latest"></script>
   <script>
     const video = document.getElementById('camera');
     const log = document.getElementById('log');
+    const bookInfo = document.getElementById('bookInfo');
     const startBtn = document.getElementById('startBtn');
 
     let codeReader = null;
     let booksCache = []; // sem uložíme celou tabulku
+    let currentCode = null;
 
     const SERVER_URL = "https://script.google.com/macros/s/AKfycbydMGsFqvQaZdmmladR8l6vqtuHTlA4hCPjudrUX8tkX4jPNq91AKGZOsKQnzNh4ABT/exec";
 
@@ -51,8 +57,46 @@
 
     // ========== OZNAČENÍ JAKO PRODANÉ ==========
     async function markAsSold(code) {
-      const res = await fetch(`${SERVER_URL}?action=markAsSold&code=${encodeURIComponent(code)}`);
-      return await res.json();
+      try {
+        const res = await fetch(`${SERVER_URL}?action=markAsSold&code=${encodeURIComponent(code)}`);
+        const result = await res.json();
+        writeLog(result.message);
+
+        if (result.success) {
+          // aktualizujeme status i v lokální cache
+          const book = findLocalBook(code);
+          if (book) book.status = "prodano";
+          showBookInfo(book);
+        }
+      } catch (err) {
+        writeLog("Chyba při označování jako prodané: " + err);
+      }
+    }
+
+    // ========== VYKRESLENÍ INFORMACÍ O KNIZE ==========
+    function showBookInfo(book) {
+      if (!book) {
+        bookInfo.innerHTML = "<p><b>Učebnice nenalezena v tabulce</b></p>";
+        return;
+      }
+
+      let html = `
+        <h3>${book.title || "Neznámý název"}</h3>
+        <p><b>Kód:</b> ${book.code}</p>
+        <p><b>Stav:</b> ${book.status || "nezadán"}</p>
+        <p><b>Majitel:</b> ${book.owner || "-"}</p>
+        <p><b>Třída:</b> ${book.class || "-"}</p>
+        <p><b>Cena:</b> ${book.price || "-"} Kč</p>
+        <p><b>Email:</b> ${book.email || "-"}</p>
+      `;
+
+      if ((book.status || "").toLowerCase() !== "prodano") {
+        html += `<button onclick="markAsSold('${book.code}')">💰 Označit jako prodanou</button>`;
+      } else {
+        html += `<p style="color:red;"><b>Tato učebnice je již prodaná.</b></p>`;
+      }
+
+      bookInfo.innerHTML = html;
     }
 
     // ========== SPUŠTĚNÍ SKENOVÁNÍ ==========
@@ -64,19 +108,11 @@
         writeLog("Spouštím kameru…");
         const result = await codeReader.decodeOnceFromVideoDevice(undefined, video);
         const code = result.text.trim();
+        currentCode = code;
         writeLog("Naskenováno: " + code);
 
-        // vyhledáme knihu lokálně
         const book = findLocalBook(code);
-        if (book) {
-          writeLog(`Učebnice nalezena: ${book.title} (${book.price} Kč)`);
-
-          // odešleme na server, že je prodaná
-          const res = await markAsSold(code);
-          writeLog(res.message);
-        } else {
-          writeLog("Učebnice nenalezena v tabulce");
-        }
+        showBookInfo(book);
 
         // vypneme kameru
         await codeReader.reset();
@@ -90,6 +126,9 @@
 
     // při načtení stránky hned stáhneme tabulku
     loadBooks();
+
+    // musíme mít markAsSold dostupný i z HTML tlačítka
+    window.markAsSold = markAsSold;
   </script>
 </body>
 </html>
