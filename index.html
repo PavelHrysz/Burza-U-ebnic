@@ -74,31 +74,38 @@
     }
 
     // ========== VYKRESLENÍ INFORMACÍ O KNIZE ==========
-    function showBookInfo(book) {
-      if (!book) {
-        bookInfo.innerHTML = "<p><b>Učebnice nenalezena v tabulce</b></p>";
-        return;
-      }
+   function showBookInfo(book) {
+  if (!book) {
+    bookInfo.innerHTML = "<p><b>Učebnice nenalezena v tabulce</b></p>";
+    return;
+  }
 
-      let html = `
-        <h3>${book.title || "Neznámý název"}</h3>
-        <p><b>Kód:</b> ${book.code}</p>
-        <p><b>Stav:</b> ${book.status || "nezadán"}</p>
-        <p><b>Majitel:</b> ${book.owner || "-"}</p>
-        <p><b>Třída:</b> ${book.class || "-"}</p>
-        <p><b>Cena:</b> ${book.price || "-"} Kč</p>
-        <p><b>Přirážka:</b> ${book.fee || "-"} Kč</p>
-        <p><b>Email:</b> ${book.email || "-"}</p>
-      `;
+  // spočítáme celkovou cenu
+  const price = parseFloat(book.price) || 0;
+  const fee = parseFloat(book.fee) || 0;
+  const total = price + fee;
 
-      if ((book.status || "").toLowerCase() !== "prodano") {
-        html += `<button onclick="markAsSold('${book.code}')">💰 Označit jako prodanou</button>`;
-      } else {
-        html += `<p style="color:red;"><b>Tato učebnice je již prodaná.</b></p>`;
-      }
+  let html = `
+    <h3>${book.title || "Neznámý název"}</h3>
+    <p><b>Kód:</b> ${book.code}</p>
+    <p><b>Stav:</b> ${book.status || "nezadán"}</p>
+    <p><b>Majitel:</b> ${book.owner || "-"}</p>
+    <p><b>Třída:</b> ${book.class || "-"}</p>
+    <p><b>Cena:</b> ${price} Kč</p>
+    <p><b>Přirážka:</b> ${fee} Kč</p>
+    <p><b>Celkem:</b> ${total} Kč</p>
+    <p><b>Email:</b> ${book.email || "-"}</p>
+  `;
 
-      bookInfo.innerHTML = html;
-    }
+  if ((book.status || "").toLowerCase() !== "prodano") {
+    html += `<button onclick="markAsSold('${book.code}')">💰 Označit jako prodanou</button>`;
+  } else {
+    html += `<p style="color:red;"><b>Tato učebnice je již prodaná.</b></p>`;
+  }
+
+  bookInfo.innerHTML = html;
+}
+
 
     // ========== SPUŠTĚNÍ SKENOVÁNÍ ==========
     async function startScan() {
