@@ -9,39 +9,61 @@
     body { font-family: Arial, sans-serif; background:#121212; color:#fff; text-align:center; padding:20px; }
     #reader { width:95%; max-width:400px; margin:0 auto; }
     #result { margin-top:20px; font-size:1.4em; font-weight:bold; color:#4dabf7; }
+    #restartBtn {
+      margin-top: 20px;
+      padding: 12px 18px;
+      font-size: 1em;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: linear-gradient(135deg, #4dabf7, #1971c2);
+      color: white;
+      font-weight: bold;
+      display: none; /* skryté dokud není výsledek */
+    }
+    #restartBtn:active {
+      transform: scale(0.95);
+      opacity: 0.9;
+    }
   </style>
 </head>
 <body>
   <h1>📷 Jednoduchý skener</h1>
   <div id="reader"></div>
   <div id="result"></div>
+  <button id="restartBtn" onclick="restartScanner()">Načíst další kód</button>
 
   <script>
-    const reader = new Html5Qrcode("reader");
+    let reader;
 
     function startScanner() {
+      reader = new Html5Qrcode("reader");
       Html5Qrcode.getCameras().then(cameras => {
         if (cameras && cameras.length) {
-          // pokud má víc kamer, vezmeme zadní (poslední v seznamu)
           const cameraId = cameras.length > 1 ? cameras[cameras.length - 1].id : cameras[0].id;
           reader.start(
             cameraId,
             { fps: 10, qrbox: { width: 250, height: 250 } },
             (decodedText) => {
-              // jakmile načte kód, stop a vypiš výsledek
               reader.stop().then(() => {
                 document.getElementById("reader").style.display = "none";
                 document.getElementById("result").innerText = "Načtený kód: " + decodedText;
+                document.getElementById("restartBtn").style.display = "inline-block";
               });
             },
-            (errorMessage) => {
-              // chyby ignorujeme
-            }
+            (errorMessage) => {}
           );
         }
       }).catch(err => {
         document.getElementById("result").innerText = "Chyba: " + err;
       });
+    }
+
+    function restartScanner() {
+      document.getElementById("result").innerText = "";
+      document.getElementById("restartBtn").style.display = "none";
+      document.getElementById("reader").style.display = "block";
+      startScanner();
     }
 
     startScanner();
