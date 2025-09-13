@@ -2,142 +2,49 @@
 <html lang="cs">
 <head>
   <meta charset="UTF-8">
-  <title>Burza učebnic – Skener</title>
+  <title>Jednoduchý skener</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
   <style>
-    body { font-family: Arial,sans-serif; background:#121212; color:#f5f5f5; margin:0; padding:20px; text-align:center; }
-    h1 { font-size:1.6em; margin-bottom:15px; color:#fff; }
-    #reader { width:95%; max-width:500px; margin:0 auto 20px auto; border:3px solid #333; border-radius:12px; overflow:hidden; display:none; }
-    input { padding:12px; font-size:1.1em; width:70%; max-width:280px; border:2px solid #333; border-radius:10px; background:#1e1e1e; color:#fff; outline:none; margin-bottom:10px; }
-    button { padding:12px 18px; margin:10px; font-size:1em; border:none; border-radius:10px; cursor:pointer; background:linear-gradient(135deg,#4dabf7,#1971c2); color:#fff; font-weight:bold; transition: transform 0.15s, opacity 0.15s; }
-    button:active { transform:scale(0.95); opacity:0.9; }
-    #result { margin-top:20px; padding:15px; border-radius:12px; background:#1e1e1e; box-shadow:0 4px 12px rgba(0,0,0,0.4); display:none; text-align:left; }
-    .book-image { max-width:150px; margin:10px auto; display:block; border-radius:6px; }
-    .status { font-weight:bold; margin:8px 0; }
-    .status.available { color:#69db7c; }
-    .status.sold { color:#ff6b6b; }
-    .mark-btn { margin-top:12px; background:linear-gradient(135deg,#ff6b6b,#c92a2a); }
-    #log { font-size:12px; color:#aaa; text-align:left; margin-top:15px; max-height:120px; overflow:auto; text-align:left; }
+    body { font-family: Arial, sans-serif; background:#121212; color:#fff; text-align:center; padding:20px; }
+    #reader { width:95%; max-width:400px; margin:0 auto; }
+    #result { margin-top:20px; font-size:1.4em; font-weight:bold; color:#4dabf7; }
   </style>
 </head>
 <body>
-<h1>📚 Burza učebnic – Skener</h1>
+  <h1>📷 Jednoduchý skener</h1>
+  <div id="reader"></div>
+  <div id="result"></div>
 
-<div id="reader"></div>
+  <script>
+    const reader = new Html5Qrcode("reader");
 
-<input type="text" id="codeInput" placeholder="Zadejte kód">
-<button onclick="manualScan()">Vyhledat</button>
-<button onclick="startCamera()">Spustit kameru</button>
+    function startScanner() {
+      Html5Qrcode.getCameras().then(cameras => {
+        if (cameras && cameras.length) {
+          // pokud má víc kamer, vezmeme zadní (poslední v seznamu)
+          const cameraId = cameras.length > 1 ? cameras[cameras.length - 1].id : cameras[0].id;
+          reader.start(
+            cameraId,
+            { fps: 10, qrbox: { width: 250, height: 250 } },
+            (decodedText) => {
+              // jakmile načte kód, stop a vypiš výsledek
+              reader.stop().then(() => {
+                document.getElementById("reader").style.display = "none";
+                document.getElementById("result").innerText = "Načtený kód: " + decodedText;
+              });
+            },
+            (errorMessage) => {
+              // chyby ignorujeme
+            }
+          );
+        }
+      }).catch(err => {
+        document.getElementById("result").innerText = "Chyba: " + err;
+      });
+    }
 
-<div id="result"></div>
-<div id="log"></div>
-
-<script>
-const API_URL = "https://script.google.com/macros/s/AKfycbwQyDZPcq2SNLq_A7DELfRIkXxITCR4QvHqH_a6eHvd0JV4fFQKbj5P1Dyyq9Qq3kn0IQ/exec"; // nahraď URL
-
-let books = [];
-let html5QrcodeScanner = null;
-let currentBook = null;
-
-// ========== LOG ==========
-function log(msg){
-  const logDiv = document.getElementById("log");
-  const time = new Date().toLocaleTimeString();
-  logDiv.innerHTML += `[${time}] ${msg}<br>`;
-  logDiv.scrollTop = logDiv.scrollHeight;
-}
-
-// ========== NAČTENÍ TABULKY ==========
-async function loadBooks(){
-  try {
-    const res = await fetch(API_URL);
-    books = await res.json();
-    log("✅ Tabulka načtena, položek: " + books.length);
-  } catch(err){
-    log("❌ Nepodařilo se načíst tabulku: " + err);
-  }
-}
-
-// ========== VYHLEDÁNÍ ==========
-async function searchBook(code){
-  if(!code) return;
-  const book = books.find(b => b.code.toString().trim() === code.toString().trim());
-
-  const resultDiv = document.getElementById("result");
-  resultDiv.style.display = "block";
-
-  if(!book){
-    resultDiv.innerHTML = "<p>❌ Učebnice nenalezena.</p>";
-    log("Učebnice nenalezena: " + code);
-    return;
-  }
-
-  currentBook = book;
-  const isSold = book.status.toLowerCase() === "prodano";
-  const statusClass = isSold ? "sold" : "available";
-
-  resultDiv.innerHTML = `
-    <h3>${book.title}</h3>
-    ${book.image ? `<img src="${book.image}" class="book-image">` : ""}
-    <p><strong>Majitel:</strong> ${book.owner} (${book.class})</p>
-    <p><strong>Email:</strong> ${book.email}</p>
-    <p><strong>Cena:</strong> ${book.price} Kč (+${book.fee} Kč přirážka)</p>
-    <p class="status ${statusClass}">Stav: ${book.status}</p>
-    ${!isSold ? `<button class="mark-btn" onclick="markAsSold('${book.code}')">Označit jako prodané</button>` : ""}
-  `;
-
-  document.getElementById("codeInput").value = "";
-  stopCamera();
-  log("Učebnice nalezena: " + book.code);
-}
-
-// ========== PRODEJ ==========
-async function markAsSold(code){
-  try{
-    const res = await fetch(`${API_URL}?code=${encodeURIComponent(code)}&action=markAsSold`);
-    const data = await res.json();
-    alert(data.message);
-    startCamera();
-  } catch(err){
-    log("❌ Chyba při označování: " + err);
-  }
-}
-
-// ========== KAMERA ==========
-function onScanSuccess(decodedText){
-  log("Naskenováno: " + decodedText);
-  searchBook(decodedText);
-}
-
-function onScanError(err){}
-
-function startCamera(){
-  document.getElementById("result").style.display = "none";
-  document.getElementById("reader").style.display = "block";
-  if(!html5QrcodeScanner){
-    html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps:10, qrbox:{width:250,height:250}, rememberLastUsedCamera:false }, false);
-    html5QrcodeScanner.render(onScanSuccess,onScanError);
-  } else {
-    html5QrcodeScanner.render(onScanSuccess,onScanError);
-  }
-}
-
-function stopCamera(){
-  if(html5QrcodeScanner){
-    html5QrcodeScanner.clear().catch(err=>log("Chyba při zastavení kamery: "+err));
-    document.getElementById("reader").style.display = "none";
-  }
-}
-
-// ========== RUČNÍ ZADÁNÍ ==========
-function manualScan(){
-  const code = document.getElementById("codeInput").value.trim();
-  if(code) searchBook(code);
-}
-
-// ========== SPUŠTĚNÍ ==========
-loadBooks().then(() => startCamera());
-</script>
+    startScanner();
+  </script>
 </body>
 </html>
