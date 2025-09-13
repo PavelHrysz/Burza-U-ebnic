@@ -1,134 +1,94 @@
 <!DOCTYPE html>
 <html lang="cs">
 <head>
-  <meta charset="UTF-8" />
-  <title>Burza učebnic – mobil</title>
+  <meta charset="UTF-8">
+  <title>Burza učebnic – Skener</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: #eee;
-      text-align: center;
-      padding: 20px;
-    }
-    #preview {
-      margin-top: 20px;
-      padding: 15px;
-      border: 1px solid #444;
-      border-radius: 10px;
-      background: #1c1c1c;
-    }
-    button {
-      margin-top: 10px;
-      padding: 10px 20px;
-      font-size: 16px;
-      border: none;
-      border-radius: 8px;
-      background: #444;
-      color: #fff;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #666;
-    }
+    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
+    video { width: 100%; max-width: 400px; border: 1px solid #ccc; border-radius: 8px; }
+    button { margin: 10px; padding: 10px 20px; font-size: 16px; }
+    #log { margin-top: 20px; white-space: pre-wrap; text-align: left; }
   </style>
 </head>
 <body>
   <h1>📚 Burza učebnic</h1>
-  <button id="scanBtn">📷 Načíst kód</button>
-  <div id="preview">Načtěte učebnici...</div>
+  <video id="camera" autoplay playsinline></video><br>
+  <button id="startBtn">▶️ Načíst kód</button>
+  <div id="log"></div>
 
-  <script src="https://unpkg.com/html5-qrcode"></script>
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
   <script>
-    const GAS_URL = "https://script.google.com/macros/s/AKfycbwQyDZPcq2SNLq_A7DELfRIkXxITCR4QvHqH_a6eHvd0JV4fFQKbj5P1Dyyq9Qq3kn0IQ/exec";
-    let books = []; // sem uložíme celou tabulku
+    const video = document.getElementById('camera');
+    const log = document.getElementById('log');
+    const startBtn = document.getElementById('startBtn');
 
-    // === 1) Stáhneme tabulku při načtení stránky ===
+    let codeReader = null;
+    let booksCache = []; // sem uložíme celou tabulku
+
+    const SERVER_URL = "https://script.google.com/macros/s/AKfycbydMGsFqvQaZdmmladR8l6vqtuHTlA4hCPjudrUX8tkX4jPNq91AKGZOsKQnzNh4ABT/exec";
+
+    // ========== LOG ==========
+    function writeLog(msg) {
+      const time = new Date().toLocaleTimeString();
+      log.textContent = `[${time}] ${msg}`;
+    }
+
+    // ========== NAČTENÍ CELÉ TABULKY ==========
     async function loadBooks() {
       try {
-        const res = await fetch(GAS_URL + "?action=getAllBooks");
-        books = await res.json();
-        console.log("Tabulka načtena:", books.length, "položek");
+        const res = await fetch(`${SERVER_URL}?action=getAll`);
+        booksCache = await res.json();
+        writeLog(`Načteno ${booksCache.length} knih`);
       } catch (err) {
-        console.error("Nepodařilo se načíst tabulku:", err);
+        writeLog("Chyba při načítání tabulky: " + err);
       }
     }
 
-    // === 2) Najdeme knihu lokálně podle kódu ===
-    function findBookLocal(code) {
-      return books.find(b => String(b.code).trim() === String(code).trim()) || null;
+    // ========== VYHLEDÁNÍ KNIHY LOKÁLNĚ ==========
+    function findLocalBook(code) {
+      return booksCache.find(b => String(b.code).trim() === String(code).trim()) || null;
     }
 
-    // === 3) Označíme jako prodanou na serveru ===
+    // ========== OZNAČENÍ JAKO PRODANÉ ==========
     async function markAsSold(code) {
-      try {
-        const res = await fetch(GAS_URL + "?action=markAsSold&code=" + encodeURIComponent(code));
-        return await res.json();
-      } catch (err) {
-        return { success: false, message: "Chyba při komunikaci se serverem" };
-      }
+      const res = await fetch(`${SERVER_URL}?action=markAsSold&code=${encodeURIComponent(code)}`);
+      return await res.json();
     }
 
-    // === 4) Spuštění skeneru ===
-    async function startScanner() {
-      const html5QrCode = new Html5Qrcode("reader");
+    // ========== SPUŠTĚNÍ SKENOVÁNÍ ==========
+    async function startScan() {
+      if (!codeReader) {
+        codeReader = new ZXing.BrowserBarcodeReader();
+      }
       try {
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          { fps: 10, qrbox: 250 },
-          async (decodedText) => {
-            await html5QrCode.stop();
-            document.getElementById("reader").remove();
-            handleCode(decodedText);
-          }
-        );
-      } catch (err) {
-        console.error("Chyba kamery:", err);
-      }
-    }
+        writeLog("Spouštím kameru…");
+        const result = await codeReader.decodeOnceFromVideoDevice(undefined, video);
+        const code = result.text.trim();
+        writeLog("Naskenováno: " + code);
 
-    // === 5) Zpracování načteného kódu ===
-    async function handleCode(code) {
-      const book = findBookLocal(code);
-      if (!book) {
-        document.getElementById("preview").innerHTML = "❌ Učebnice nenalezena: " + code;
-        return;
-      }
+        // vyhledáme knihu lokálně
+        const book = findLocalBook(code);
+        if (book) {
+          writeLog(`Učebnice nalezena: ${book.title} (${book.price} Kč)`);
 
-      document.getElementById("preview").innerHTML = `
-        <h2>${book.title}</h2>
-        <p><b>Majitel:</b> ${book.owner} (${book.class})</p>
-        <p><b>Cena:</b> ${book.price} Kč + ${book.fee} Kč přirážka</p>
-        <img src="${book.image}" width="120" /><br/>
-        <p><b>Stav:</b> ${book.status}</p>
-        ${book.status === "prodano" ? 
-          "<p style='color:red'>❌ Již prodaná</p>" : 
-          `<button onclick="sellBook('${book.code}')">✅ Označit jako prodanou</button>`
+          // odešleme na server, že je prodaná
+          const res = await markAsSold(code);
+          writeLog(res.message);
+        } else {
+          writeLog("Učebnice nenalezena v tabulce");
         }
-      `;
+
+        // vypneme kameru
+        await codeReader.reset();
+      } catch (err) {
+        writeLog("Chyba při skenování: " + err);
+      }
     }
 
-    // === 6) Prodej knihy ===
-    async function sellBook(code) {
-      const result = await markAsSold(code);
-      alert(result.message);
+    // ========== EVENTY ==========
+    startBtn.addEventListener('click', startScan);
 
-      // aktualizujeme lokální stav
-      const b = findBookLocal(code);
-      if (b && result.success) b.status = "prodano";
-
-      handleCode(code);
-    }
-
-    // === Připojení tlačítka ===
-    document.getElementById("scanBtn").addEventListener("click", () => {
-      const readerDiv = document.createElement("div");
-      readerDiv.id = "reader";
-      document.body.appendChild(readerDiv);
-      startScanner();
-    });
-
-    // === Načti data hned při spuštění ===
+    // při načtení stránky hned stáhneme tabulku
     loadBooks();
   </script>
 </body>
