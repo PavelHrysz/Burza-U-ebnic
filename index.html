@@ -4,12 +4,97 @@
   <meta charset="UTF-8">
   <title>Burza učebnic – Skener</title>
   <style>
-    body { font-family: Arial, sans-serif; text-align: center; margin: 20px; }
-    video { width: 100%; max-width: 400px; border: 1px solid #ccc; border-radius: 8px; }
-    button { margin: 10px; padding: 10px 20px; font-size: 16px; }
-    #log { margin-top: 20px; text-align: left; white-space: pre-wrap; }
-    #bookInfo { margin-top: 20px; text-align: left; }
-    #bookInfo button { margin-top: 10px; }
+    /* ===== TMAVÝ REŽIM ===== */
+    :root {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #f0f0f0;
+      --accent-color: #ffcc00;
+      --btn-bg: #333;
+      --btn-hover: #444;
+      --btn-text: #fff;
+      --log-bg: #1a1a1a;
+      --log-border: #444;
+    }
+
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+    }
+
+    h1 {
+      color: var(--accent-color);
+    }
+
+    video {
+      width: 100%;
+      max-width: 400px;
+      border: 1px solid #555;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    button {
+      margin: 10px;
+      padding: 12px 24px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      background-color: var(--btn-bg);
+      color: var(--btn-text);
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: var(--btn-hover);
+    }
+
+    #log {
+      margin-top: 20px;
+      text-align: left;
+      white-space: pre-wrap;
+      background-color: var(--log-bg);
+      border: 1px solid var(--log-border);
+      border-radius: 8px;
+      padding: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+    }
+
+    #bookInfo {
+      margin-top: 20px;
+      text-align: left;
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      padding: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    #bookInfo button {
+      margin-top: 15px;
+      background-color: var(--accent-color);
+      color: #000;
+      font-weight: bold;
+    }
+
+    #bookInfo p, #bookInfo h3 {
+      margin: 5px 0;
+    }
+
+    /* scrollbars pro tmavý režim */
+    #log::-webkit-scrollbar {
+      width: 8px;
+    }
+
+    #log::-webkit-scrollbar-thumb {
+      background-color: #666;
+      border-radius: 4px;
+    }
+
   </style>
 </head>
 <body>
@@ -28,18 +113,16 @@
     const startBtn = document.getElementById('startBtn');
 
     let codeReader = null;
-    let booksCache = []; // sem uložíme celou tabulku
+    let booksCache = [];
     let currentCode = null;
 
     const SERVER_URL = "https://script.google.com/macros/s/AKfycbydMGsFqvQaZdmmladR8l6vqtuHTlA4hCPjudrUX8tkX4jPNq91AKGZOsKQnzNh4ABT/exec";
 
-    // ========== LOG ==========
     function writeLog(msg) {
       const time = new Date().toLocaleTimeString();
       log.textContent = `[${time}] ${msg}`;
     }
 
-    // ========== NAČTENÍ CELÉ TABULKY ==========
     async function loadBooks() {
       try {
         const res = await fetch(`${SERVER_URL}?action=getAll`);
@@ -50,12 +133,10 @@
       }
     }
 
-    // ========== VYHLEDÁNÍ KNIHY LOKÁLNĚ ==========
     function findLocalBook(code) {
       return booksCache.find(b => String(b.code).trim() === String(code).trim()) || null;
     }
 
-    // ========== OZNAČENÍ JAKO PRODANÉ ==========
     async function markAsSold(code) {
       try {
         const res = await fetch(`${SERVER_URL}?action=markAsSold&code=${encodeURIComponent(code)}`);
@@ -63,7 +144,6 @@
         writeLog(result.message);
 
         if (result.success) {
-          // aktualizujeme status i v lokální cache
           const book = findLocalBook(code);
           if (book) book.status = "prodano";
           showBookInfo(book);
@@ -73,41 +153,37 @@
       }
     }
 
-    // ========== VYKRESLENÍ INFORMACÍ O KNIZE ==========
-   function showBookInfo(book) {
-  if (!book) {
-    bookInfo.innerHTML = "<p><b>Učebnice nenalezena v tabulce</b></p>";
-    return;
-  }
+    function showBookInfo(book) {
+      if (!book) {
+        bookInfo.innerHTML = "<p><b>Učebnice nenalezena v tabulce</b></p>";
+        return;
+      }
 
-  // spočítáme celkovou cenu
-  const price = parseFloat(book.price) || 0;
-  const fee = parseFloat(book.fee) || 0;
-  const total = price + fee;
+      const price = parseFloat(book.price) || 0;
+      const fee = parseFloat(book.fee) || 0;
+      const total = price + fee;
 
-  let html = `
-    <h3>${book.title || "Neznámý název"}</h3>
-    <p><b>Kód:</b> ${book.code}</p>
-    <p><b>Stav:</b> ${book.status || "nezadán"}</p>
-    <p><b>Majitel:</b> ${book.owner || "-"}</p>
-    <p><b>Třída:</b> ${book.class || "-"}</p>
-    <p><b>Cena:</b> ${price} Kč</p>
-    <p><b>Přirážka:</b> ${fee} Kč</p>
-    <p><b>Celkem:</b> ${total} Kč</p>
-    <p><b>Email:</b> ${book.email || "-"}</p>
-  `;
+      let html = `
+        <h3>${book.title || "Neznámý název"}</h3>
+        <p><b>Kód:</b> ${book.code}</p>
+        <p><b>Stav:</b> ${book.status || "nezadán"}</p>
+        <p><b>Majitel:</b> ${book.owner || "-"}</p>
+        <p><b>Třída:</b> ${book.class || "-"}</p>
+        <p><b>Cena:</b> ${price} Kč</p>
+        <p><b>Přirážka:</b> ${fee} Kč</p>
+        <p><b>Celkem:</b> ${total} Kč</p>
+        <p><b>Email:</b> ${book.email || "-"}</p>
+      `;
 
-  if ((book.status || "").toLowerCase() !== "prodano") {
-    html += `<button onclick="markAsSold('${book.code}')">💰 Označit jako prodanou</button>`;
-  } else {
-    html += `<p style="color:red;"><b>Tato učebnice je již prodaná.</b></p>`;
-  }
+      if ((book.status || "").toLowerCase() !== "prodano") {
+        html += `<button onclick="markAsSold('${book.code}')">💰 Označit jako prodanou</button>`;
+      } else {
+        html += `<p style="color:red;"><b>Tato učebnice je již prodaná.</b></p>`;
+      }
 
-  bookInfo.innerHTML = html;
-}
+      bookInfo.innerHTML = html;
+    }
 
-
-    // ========== SPUŠTĚNÍ SKENOVÁNÍ ==========
     async function startScan() {
       if (!codeReader) {
         codeReader = new ZXing.BrowserBarcodeReader();
@@ -122,20 +198,14 @@
         const book = findLocalBook(code);
         showBookInfo(book);
 
-        // vypneme kameru
         await codeReader.reset();
       } catch (err) {
         writeLog("Chyba při skenování: " + err);
       }
     }
 
-    // ========== EVENTY ==========
     startBtn.addEventListener('click', startScan);
-
-    // při načtení stránky hned stáhneme tabulku
     loadBooks();
-
-    // musíme mít markAsSold dostupný i z HTML tlačítka
     window.markAsSold = markAsSold;
   </script>
 </body>
