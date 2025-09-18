@@ -3,233 +3,336 @@
 <head>
   <meta charset="UTF-8">
   <title>Burza učebnic – Skener</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+  <!-- ZXing pro čtení čárových kódů -->
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
+  <!-- QRCode knihovna pro generování QR -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
   <style>
     :root {
-      --bg: #121212;
-      --fg: #e0e0e0;
-      --accent: #4caf50;
-      --danger: #f44336;
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --text-color: #f0f0f0;
+      --accent-color: #ffcc00;
+      --btn-bg: #333;
+      --btn-hover: #444;
+      --btn-text: #fff;
+      --log-bg: #1a1a1a;
+      --log-border: #444;
     }
+
     body {
-      background: var(--bg);
-      color: var(--fg);
       font-family: "Segoe UI", Arial, sans-serif;
-      padding: 20px;
       text-align: center;
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-color);
+      color: var(--text-color);
     }
-    video {
-      width: 100%;
-      max-width: 400px;
-      border: 2px solid var(--accent);
-      border-radius: 12px;
-      margin-bottom: 15px;
-    }
-    button {
-      background: var(--accent);
-      color: white;
-      border: none;
-      padding: 10px 16px;
-      margin: 6px;
-      border-radius: 8px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    button:hover { opacity: 0.9; }
-    .danger { background: var(--danger); }
-    #log, #bookInfo, #orderInfo {
-      text-align: left;
-      margin: 20px auto;
+
+    h1 {
+      color: var(--accent-color);
       padding: 15px;
-      background: #1e1e1e;
-      border-radius: 10px;
-      max-width: 500px;
+      font-size: 1.8em;
     }
-    #qrcode { margin-top: 15px; text-align: center; }
+
+    video {
+      width: 95%;
+      max-width: 450px;
+      margin: 10px auto;
+      border: 1px solid #555;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    button {
+      display: block;
+      width: 90%;
+      max-width: 400px;
+      margin: 15px auto;
+      padding: 15px 0;
+      font-size: 18px;
+      border: none;
+      border-radius: 12px;
+      background-color: var(--btn-bg);
+      color: var(--btn-text);
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    button:hover {
+      background-color: var(--btn-hover);
+    }
+
+    #log {
+      margin: 15px auto;
+      width: 95%;
+      max-width: 450px;
+      text-align: left;
+      white-space: pre-wrap;
+      background-color: var(--log-bg);
+      border: 1px solid var(--log-border);
+      border-radius: 12px;
+      padding: 10px;
+      max-height: 150px;
+      overflow-y: auto;
+      font-size: 0.9em;
+    }
+
+    #bookInfo {
+      margin: 15px auto;
+      width: 95%;
+      max-width: 450px;
+      text-align: left;
+      background-color: var(--card-bg);
+      border-radius: 12px;
+      padding: 15px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      font-size: 1em;
+    }
+
+    #bookInfo button {
+      margin-top: 15px;
+      width: 100%;
+      background-color: var(--accent-color);
+      color: #000;
+      font-weight: bold;
+      font-size: 1.1em;
+    }
+
+    #bookInfo p, #bookInfo h3 {
+      margin: 5px 0;
+      word-break: break-word;
+    }
+
+    #qrContainer img, #qrContainer canvas {
+      margin-top: 15px;
+      max-width: 100%;
+      border: 1px solid #555;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
+    #log::-webkit-scrollbar {
+      width: 8px;
+    }
+    #log::-webkit-scrollbar-thumb {
+      background-color: #666;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
   <h1>📚 Burza učebnic</h1>
+  <video id="camera" autoplay playsinline></video>
+  <button id="startBtn">▶️ Načíst kód</button>
 
-  <video id="video" autoplay></video><br>
-  <button onclick="startScanner()">▶️ Načíst kód</button>
-
-  <div id="bookInfo" style="display:none"></div>
-  <div id="orderInfo" style="display:none"></div>
-  <div id="qrcode"></div>
   <div id="log"></div>
+  <div id="bookInfo"></div>
 
-  <script src="https://unpkg.com/@zxing/library@latest"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script>
-    const SERVER_URL = "https://script.google.com/macros/s/AKfycbz1VEsJ_7us1pAeaeruw_K7UjKZwxAx1RxuPdvclZTjcwB5B08sSt-JTxCqvFtvK5Tw/exec";
-    const IBAN = "CZ8208000000004129739023";
-    let codeReader;
-    let currentCode = null;
-    let booksCache = [];
-    let currentOrder = [];
+    const video = document.getElementById('camera');
+    const log = document.getElementById('log');
+    const bookInfo = document.getElementById('bookInfo');
+    const startBtn = document.getElementById('startBtn');
 
-    // Log
-    function log(msg) {
-      document.getElementById('log').innerHTML += msg + "<br>";
+    const SERVER_URL = "https://script.google.com/macros/s/AKfycbwElTQNJDISl9lh-jnTtMgzDXLI9QGkyEqmzTHXL_I2xg9xTSGsYxUxQlm2d4Hs-93oKA/exec";
+    const IBAN = "CZ8208000000004129739023";
+    const MENA = "CZK";
+
+    let codeReader = null;
+    let booksCache = [];
+    let currentCode = null;
+    let cart = []; // košík pro více knih
+
+    function writeLog(msg) {
+      const time = new Date().toLocaleTimeString();
+      log.textContent = `[${time}] ${msg}`;
     }
 
-    // Načtení všech knih
     async function loadBooks() {
       try {
-        const res = await fetch(SERVER_URL + "?action=getAll");
+        const res = await fetch(`${SERVER_URL}?action=getAll`);
         booksCache = await res.json();
-        log("📖 Načteno " + booksCache.length + " knih z databáze.");
-      } catch (e) {
-        log("❌ Chyba při načítání knih: " + e);
+        writeLog(`Načteno ${booksCache.length} knih`);
+      } catch (err) {
+        writeLog("Chyba při načítání tabulky: " + err);
       }
     }
 
     function findLocalBook(code) {
-      return booksCache.find(b => b.kod === code);
+      return booksCache.find(b => String(b.code).trim() === String(code).trim()) || null;
     }
 
-    // Skener
-    async function startScanner() {
-      if (!codeReader) {
-        codeReader = new ZXing.BrowserMultiFormatReader();
-      }
-      try {
-        const devices = await ZXing.BrowserCodeReader.listVideoInputDevices();
-        if (devices.length === 0) {
-          log("❌ Kamera nenalezena");
-          return;
-        }
-        await codeReader.decodeFromVideoDevice(devices[0].deviceId, "video", (result, err) => {
-          if (result) {
-            currentCode = result.text;
-            log("📷 Naskenováno: " + currentCode);
-            codeReader.reset();
-            showBook(currentCode);
-          }
-        });
-      } catch (e) {
-        log("❌ Chyba kamery: " + e);
-      }
-    }
-
-    // Zobrazení knihy
-    function showBook(code) {
-      const book = findLocalBook(code);
-      const div = document.getElementById('bookInfo');
-      div.style.display = 'block';
-      document.getElementById('qrcode').innerHTML = "";
-
-      if (!book) {
-        div.innerHTML = "<p>❌ Kniha s kódem " + code + " nenalezena.</p>";
-        return;
-      }
-
-      div.innerHTML = `
-        <h3>${book.nazev}</h3>
-        <p>Kód: ${book.kod}</p>
-        <p>Cena: ${book.cena} Kč</p>
-        <p>Majitel: ${book.jmeno} (${book.email})</p>
-        <p>Stav: ${book.stav}</p>
-        <button onclick="markAsSold('${book.kod}')">💰 Označit jako prodanou</button>
-        <button onclick="addToOrder('${book.kod}')">➕ Přidat do objednávky</button>
-      `;
-    }
-
-    // Jednotlivý prodej
     async function markAsSold(code) {
       try {
-        await fetch(SERVER_URL + "?action=sell&code=" + code);
-        log("✅ Kniha " + code + " prodána.");
-        booksCache = booksCache.map(b => b.kod === code ? {...b, stav:"prodáno"} : b);
-        showBook(code);
-      } catch (e) {
-        log("❌ Chyba při označení: " + e);
+        const res = await fetch(`${SERVER_URL}?action=markAsSold&code=${encodeURIComponent(code)}`);
+        const result = await res.json();
+        writeLog(result.message);
+
+        if (result.success) {
+          const book = findLocalBook(code);
+          if (book) book.status = "prodano";
+        }
+      } catch (err) {
+        writeLog("Chyba při označování jako prodané: " + err);
       }
     }
 
-    // Přidat do objednávky
-    function addToOrder(code) {
-      const book = findLocalBook(code);
+    // ---- Košík ----
+    function addToCart(book) {
       if (!book) return;
-      if (book.stav === "prodáno") {
-        log("⚠️ Kniha už je prodaná.");
+      if ((book.status || "").toLowerCase() === "prodano") {
+        writeLog(`Kniha ${book.code} je už prodaná, nelze přidat.`);
         return;
       }
-      if (currentOrder.find(b => b.kod === code)) {
-        log("⚠️ Tato kniha už je v objednávce.");
+      if (cart.find(b => b.code === book.code)) {
+        writeLog(`Kniha ${book.code} už je v objednávce.`);
         return;
       }
-      currentOrder.push(book);
-      log("🛒 Přidáno: " + book.nazev);
-      renderOrder();
+      cart.push(book);
+      writeLog(`Přidána do objednávky: ${book.title}`);
+      showCart();
     }
 
-    // Render objednávky
-    function renderOrder() {
-      const orderDiv = document.getElementById('orderInfo');
-      if (currentOrder.length === 0) {
-        orderDiv.style.display = 'none';
-        document.getElementById('qrcode').innerHTML = "";
+    function showCart() {
+      if (cart.length === 0) {
+        bookInfo.innerHTML = "<p><b>Košík je prázdný</b></p>";
         return;
       }
-
-      orderDiv.style.display = 'block';
-      orderDiv.innerHTML = "<h3>🛒 Aktuální objednávka:</h3>";
 
       let total = 0;
-      currentOrder.forEach((book, index) => {
-        const price = parseFloat(book.cena) || 0;
-        total += price;
+      let html = `<h3>Objednávka (${cart.length} položek)</h3><ul>`;
+      cart.forEach(book => {
+        const price = parseFloat(book.price) || 0;
+        const fee = parseFloat(book.fee) || 0;
+        const sum = price + fee;
+        total += sum;
+        html += `<li><b>${book.title}</b> (${book.code}) – ${sum} Kč</li>`;
+      });
+      html += `</ul><p><b>Celkem:</b> ${total} Kč</p>`;
 
-        orderDiv.innerHTML += `
-          <p>
-            ${book.nazev} – ${price} Kč 
-            <button class="danger" onclick="removeFromOrder(${index})">❌</button>
-          </p>`;
+      html += `<button onclick="sellAll()">💰 Prodat všechny</button>`;
+      html += `<button onclick="showCartQR()">📷 Zobrazit QR platbu</button>`;
+      html += `<div id="qrContainer" style="text-align:center;"></div>`;
+
+      bookInfo.innerHTML = html;
+    }
+
+    async function sellAll() {
+      for (let book of cart) {
+        await markAsSold(book.code);
+      }
+      cart = [];
+      showCart();
+    }
+
+    function showCartQR() {
+      if (cart.length === 0) return;
+      const qrDiv = document.getElementById("qrContainer");
+      qrDiv.innerHTML = "";
+
+      let total = 0;
+      let msg = "Objednávka: ";
+      cart.forEach(b => {
+        const price = parseFloat(b.price) || 0;
+        const fee = parseFloat(b.fee) || 0;
+        total += price + fee;
+        msg += `${b.title}, `;
       });
 
-      orderDiv.innerHTML += `<p><b>Celkem: ${total} Kč</b></p>`;
+      const data = `SPD*1.0*ACC:${IBAN}*AM:${total.toFixed(2)}*CC:${MENA}*MSG:${msg}`;
+      QRCode.toCanvas(data, { width: 220, margin: 2 }, function(err, canvas) {
+        if (err) {
+          writeLog("Chyba při generování QR: " + err);
+          return;
+        }
+        qrDiv.appendChild(canvas);
+      });
+    }
 
-      orderDiv.innerHTML += `
-        <button onclick="generateOrderQR()">💳 QR kód platby (celá objednávka)</button>
-        <button onclick="markAllAsSold()">✅ Označit všechny jako prodané</button>
+    // ---- Původní zobrazení knihy ----
+    function showBookInfo(book) {
+      if (!book) {
+        bookInfo.innerHTML = "<p><b>Učebnice nenalezena v tabulce</b></p>";
+        return;
+      }
+
+      const price = parseFloat(book.price) || 0;
+      const fee = parseFloat(book.fee) || 0;
+      const total = price + fee;
+
+      let html = `
+        <h3>${book.title || "Neznámý název"}</h3>
+        <p><b>Kód:</b> ${book.code}</p>
+        <p><b>Stav:</b> ${book.status || "nezadán"}</p>
+        <p><b>Majitel:</b> ${book.owner || "-"}</p>
+        <p><b>Třída:</b> ${book.class || "-"}</p>
+        <p><b>Cena:</b> ${price} Kč</p>
+        <p><b>Přirážka:</b> ${fee} Kč</p>
+        <p><b>Celkem:</b> ${total} Kč</p>
+        <p><b>Email:</b> ${book.email || "-"}</p>
       `;
 
-      generateOrderQR(); // rovnou aktualizujeme QR
+      if ((book.status || "").toLowerCase() !== "prodano") {
+        html += `<button onclick="markAsSold('${book.code}')">💰 Označit jako prodanou</button>`;
+        html += `<button onclick="showQR(findLocalBook('${book.code}'))">📷 Zobrazit QR platbu</button>`;
+        html += `<button onclick="addToCart(findLocalBook('${book.code}'))">➕ Přidat do objednávky</button>`;
+      } else {
+        html += `<p style="color:red;"><b>Tato učebnice je již prodaná.</b></p>`;
+      }
+
+      html += `<div id="qrContainer" style="text-align:center;"></div>`;
+      bookInfo.innerHTML = html;
     }
 
-    // Odebrat knihu z objednávky
-    function removeFromOrder(index) {
-      currentOrder.splice(index, 1);
-      renderOrder();
-    }
+    function showQR(book) {
+      const qrDiv = document.getElementById("qrContainer");
+      qrDiv.innerHTML = "";
+      if (!book) return;
 
-    // QR celá objednávka
-    function generateOrderQR() {
-      if (currentOrder.length === 0) return;
-      const total = currentOrder.reduce((sum, b) => sum + (parseFloat(b.cena) || 0), 0);
-      const message = "Objednávka: " + currentOrder.map(b => b.nazev).join(", ");
-      const qrText = `SPD*1.0*ACC:${IBAN}*AM:${total}*CC:CZK*MSG:${message}`;
+      const castka = parseFloat(book.price || 0) + parseFloat(book.fee || 0);
+      const zprava = `Kniha: ${book.title || "Neznámý název"}`;
+      const data = `SPD*1.0*ACC:${IBAN}*AM:${castka.toFixed(2)}*CC:${MENA}*MSG:${zprava}`;
 
-      document.getElementById('qrcode').innerHTML = "";
-      new QRCode(document.getElementById('qrcode'), {
-        text: qrText,
-        width: 200,
-        height: 200
+      QRCode.toCanvas(data, { width: 200, margin: 2 }, function(err, canvas) {
+        if (err) {
+          writeLog("Chyba při generování QR: " + err);
+          return;
+        }
+        qrDiv.appendChild(canvas);
       });
     }
 
-    // Označit všechny jako prodané
-    async function markAllAsSold() {
-      for (const book of currentOrder) {
-        await markAsSold(book.kod);
+    async function startScan() {
+      if (!codeReader) {
+        codeReader = new ZXing.BrowserBarcodeReader();
       }
-      currentOrder = [];
-      renderOrder();
-      log("✅ Celá objednávka prodána.");
+      try {
+        writeLog("Spouštím kameru…");
+        const result = await codeReader.decodeOnceFromVideoDevice(undefined, video);
+        const code = result.text.trim();
+        currentCode = code;
+        writeLog("Naskenováno: " + code);
+
+        const book = findLocalBook(code);
+        showBookInfo(book);
+
+        await codeReader.reset();
+      } catch (err) {
+        writeLog("Chyba při skenování: " + err);
+      }
     }
 
+    startBtn.addEventListener('click', startScan);
     loadBooks();
+    window.markAsSold = markAsSold;
+    window.showQR = showQR;
+    window.addToCart = addToCart;
+    window.sellAll = sellAll;
+    window.showCartQR = showCartQR;
   </script>
 </body>
 </html>
