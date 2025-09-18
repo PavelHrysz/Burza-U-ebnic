@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <title>Burza učebnic – Skener</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+
+  <!-- ZXing pro čtení čárových kódů -->
+  <script src="https://unpkg.com/@zxing/library@latest"></script>
+  <!-- QRCode knihovna pro generování QR -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+
   <style>
     :root {
       --bg-color: #121212;
@@ -101,7 +107,7 @@
       word-break: break-word;
     }
 
-    #qrContainer img {
+    #qrContainer img, #qrContainer canvas {
       margin-top: 15px;
       max-width: 100%;
       border: 1px solid #555;
@@ -109,16 +115,13 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.5);
     }
 
-    /* scrollbars pro tmavý režim */
     #log::-webkit-scrollbar {
       width: 8px;
     }
-
     #log::-webkit-scrollbar-thumb {
       background-color: #666;
       border-radius: 4px;
     }
-
   </style>
 </head>
 <body>
@@ -129,18 +132,19 @@
   <div id="log"></div>
   <div id="bookInfo"></div>
 
-  <script src="https://unpkg.com/@zxing/library@latest"></script>
   <script>
     const video = document.getElementById('camera');
     const log = document.getElementById('log');
     const bookInfo = document.getElementById('bookInfo');
     const startBtn = document.getElementById('startBtn');
 
+    const SERVER_URL = "https://script.google.com/macros/s/AKfycbydMGsFqvQaZdmmladR8l6vqtuHTlA4hCPjudrUX8tkX4jPNq91AKGZOsKQnzNh4ABT/exec";
+    const IBAN = "CZ6508000000192000145399";
+    const MENA = "CZK";
+
     let codeReader = null;
     let booksCache = [];
     let currentCode = null;
-
-    const SERVER_URL = "https://script.google.com/macros/s/AKfycbydMGsFqvQaZdmmladR8l6vqtuHTlA4hCPjudrUX8tkX4jPNq91AKGZOsKQnzNh4ABT/exec";
 
     function writeLog(msg) {
       const time = new Date().toLocaleTimeString();
@@ -177,6 +181,24 @@
       }
     }
 
+    function showQR(book) {
+      const qrDiv = document.getElementById("qrContainer");
+      qrDiv.innerHTML = "";
+      if (!book) return;
+
+      const castka = parseFloat(book.price || 0) + parseFloat(book.fee || 0);
+      const zprava = `Kniha: ${book.title || "Neznámý název"}`;
+      const data = `SPD*1.0*ACC:${IBAN}*AM:${castka.toFixed(2)}*CC:${MENA}*MSG:${zprava}`;
+
+      QRCode.toCanvas(data, { width: 200, margin: 2 }, function(err, canvas) {
+        if (err) {
+          writeLog("Chyba při generování QR: " + err);
+          return;
+        }
+        qrDiv.appendChild(canvas);
+      });
+    }
+
     function showBookInfo(book) {
       if (!book) {
         bookInfo.innerHTML = "<p><b>Učebnice nenalezena v tabulce</b></p>";
@@ -201,21 +223,13 @@
 
       if ((book.status || "").toLowerCase() !== "prodano") {
         html += `<button onclick="markAsSold('${book.code}')">💰 Označit jako prodanou</button>`;
-        html += `<button onclick="showQR('${book.code}')">📷 Zobrazit QR platbu</button>`;
+        html += `<button onclick="showQR(findLocalBook('${book.code}'))">📷 Zobrazit QR platbu</button>`;
       } else {
         html += `<p style="color:red;"><b>Tato učebnice je již prodaná.</b></p>`;
       }
 
       html += `<div id="qrContainer" style="text-align:center;"></div>`;
-
       bookInfo.innerHTML = html;
-    }
-
-    function showQR(code) {
-      const qrDiv = document.getElementById("qrContainer");
-      qrDiv.innerHTML = `
-        <img src="qr/${code}.png" alt="QR Platba" />
-      `;
     }
 
     async function startScan() {
