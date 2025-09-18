@@ -101,6 +101,14 @@
       word-break: break-word;
     }
 
+    #qrContainer img {
+      margin-top: 15px;
+      max-width: 100%;
+      border: 1px solid #555;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+
     /* scrollbars pro tmavý režim */
     #log::-webkit-scrollbar {
       width: 8px;
@@ -193,11 +201,21 @@
 
       if ((book.status || "").toLowerCase() !== "prodano") {
         html += `<button onclick="markAsSold('${book.code}')">💰 Označit jako prodanou</button>`;
+        html += `<button onclick="showQR('${book.code}')">📷 Zobrazit QR platbu</button>`;
       } else {
         html += `<p style="color:red;"><b>Tato učebnice je již prodaná.</b></p>`;
       }
 
+      html += `<div id="qrContainer" style="text-align:center;"></div>`;
+
       bookInfo.innerHTML = html;
+    }
+
+    function showQR(code) {
+      const qrDiv = document.getElementById("qrContainer");
+      qrDiv.innerHTML = `
+        <img src="qr/${code}.png" alt="QR Platba" />
+      `;
     }
 
     async function startScan() {
@@ -223,6 +241,7 @@
     startBtn.addEventListener('click', startScan);
     loadBooks();
     window.markAsSold = markAsSold;
+    window.showQR = showQR;
   </script>
 </body>
 </html>
